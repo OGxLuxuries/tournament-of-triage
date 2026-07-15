@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Local env — NEVER commit secrets
+.env
+.env.local
+.env.*.local
+
+# Vercel project linkage
+.vercel/
+
+# Convex local artifacts
+.convex/
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+*.log
