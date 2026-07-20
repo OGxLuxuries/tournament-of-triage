@@ -13,7 +13,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { audio } from "../lib/audio";
@@ -116,10 +116,14 @@ function MissionsTab({
 }) {
   const toast = useToast();
   const loadDemo = useMutation(api.tickets.loadDemo);
+  const removeTicket = useMutation(api.tickets.remove);
   const startRound = useMutation(api.rooms.startRound);
 
   const jumpTo = (ticketId: Id<"tickets">) =>
     startRound({ roomId: room._id, sessionId, ticketId }).catch((error) => toast.error(error));
+
+  const bench = (ticketId: Id<"tickets">) =>
+    removeTicket({ roomId: room._id, sessionId, ticketId }).catch((error) => toast.error(error));
 
   return (
     <div className="flex flex-col gap-2">
@@ -157,13 +161,25 @@ function MissionsTab({
               {ticket.finalPoints ?? "—"}p
             </span>
           ) : (
-            <button
-              onClick={() => jumpTo(ticket._id)}
-              className="border border-neon-magenta/60 px-1.5 py-0.5 font-arcade text-[7px] text-neon-magenta hover:shadow-neon-magenta"
-            >
-              <Swords size={9} className="mr-0.5 inline" aria-hidden />
-              FIGHT
-            </button>
+            <>
+              <button
+                onClick={() => jumpTo(ticket._id)}
+                className="border border-neon-magenta/60 px-1.5 py-0.5 font-arcade text-[7px] text-neon-magenta hover:shadow-neon-magenta"
+              >
+                <Swords size={9} className="mr-0.5 inline" aria-hidden />
+                FIGHT
+              </button>
+              {ticket.status === "queued" && (
+                <button
+                  onClick={() => bench(ticket._id)}
+                  aria-label={`Remove ${ticket.identifier} from the queue`}
+                  title="Remove from queue"
+                  className="border border-abyss-500 px-1.5 py-0.5 font-arcade text-[7px] text-slate-400 hover:border-neon-red hover:text-neon-red"
+                >
+                  ✕
+                </button>
+              )}
+            </>
           )}
         </div>
       ))}
@@ -419,18 +435,48 @@ function SkillsTab({
 
 /* ── LINEAR ───────────────────────────────────────────────────────────── */
 
+interface LinearTeamOption {
+  id: string;
+  key: string;
+  name: string;
+}
+
+interface TriagePreviewItem {
+  id: string;
+  identifier: string;
+  title: string;
+  priority: number;
+  teamId: string;
+  teamKey: string;
+  teamName: string;
+}
+
 function LinearTab({ room, sessionId }: { room: RoomState; sessionId: string }) {
   const toast = useToast();
   const getAuthUrl = useAction(api.linear.authUrl);
   const connectWithKey = useAction(api.linear.connectApiKey);
   const fetchTeams = useAction(api.linear.teams);
-  const importBacklog = useAction(api.linear.importBacklog);
-  const setTeam = useMutation(api.linear.setTeam);
+  const previewTriage = useAction(api.linear.previewTriage);
+  const importSelected = useAction(api.linear.importSelected);
   const disconnect = useMutation(api.linear.disconnect);
 
-  const [teams, setTeams] = useState<Array<{ id: string; key: string; name: string }> | null>(null);
+  const [teams, setTeams] = useState<LinearTeamOption[] | null>(null);
+  const [allTeams, setAllTeams] = useState(true);
+  const [selectedTeamIds, setSelectedTeamIds] = useState<Set<string>>(new Set());
+  const [preview, setPreview] = useState<TriagePreviewItem[] | null>(null);
+  const [selectedIssueIds, setSelectedIssueIds] = useState<Set<string>>(new Set());
   const [apiKey, setApiKey] = useState("");
   const [busy, setBusy] = useState(false);
+  const teamsRequested = useRef(false);
+
+  /* Team list loads itself once the workspace is linked. */
+  useEffect(() => {
+    if (!room.linear.connected || teamsRequested.current) return;
+    teamsRequested.current = true;
+    fetchTeams({ roomId: room._id, sessionId })
+      .then(setTeams)
+      .catch((error) => toast.error(error));
+  }, [room.linear.connected, room._id, sessionId, fetchTeams, toast]);
 
   const connect = async () => {
     setBusy(true);
@@ -443,10 +489,27 @@ function LinearTab({ room, sessionId }: { room: RoomState; sessionId: string }) 
     }
   };
 
-  const loadTeams = async () => {
+  const toggleTeam = (teamId: string) => {
+    setAllTeams(false);
+    setPreview(null);
+    setSelectedTeamIds((current) => {
+      const next = new Set(current);
+      if (next.has(teamId)) next.delete(teamId);
+      else next.add(teamId);
+      return next;
+    });
+  };
+
+  const scanTriage = async () => {
     setBusy(true);
     try {
-      setTeams(await fetchTeams({ roomId: room._id, sessionId }));
+      const issues = await previewTriage({
+        roomId: room._id,
+        sessionId,
+        teamIds: allTeams ? undefined : [...selectedTeamIds],
+      });
+      setPreview(issues);
+      setSelectedIssueIds(new Set(issues.map((issue) => issue.id)));
     } catch (error) {
       toast.error(error);
     } finally {
@@ -454,11 +517,29 @@ function LinearTab({ room, sessionId }: { room: RoomState; sessionId: string }) 
     }
   };
 
+  const toggleIssue = (issueId: string) => {
+    setSelectedIssueIds((current) => {
+      const next = new Set(current);
+      if (next.has(issueId)) next.delete(issueId);
+      else next.add(issueId);
+      return next;
+    });
+  };
+
   const runImport = async () => {
     setBusy(true);
     try {
-      const { inserted } = await importBacklog({ roomId: room._id, sessionId });
-      toast.push("success", `${inserted} BOSSES IMPORTED FROM LINEAR`);
+      const { inserted, skipped } = await importSelected({
+        roomId: room._id,
+        sessionId,
+        issueIds: [...selectedIssueIds],
+      });
+      toast.push(
+        "success",
+        `${inserted} TRIAGE BOSS${inserted === 1 ? "" : "ES"} ENTERED THE TOURNAMENT` +
+          (skipped > 0 ? ` · ${skipped} ALREADY QUEUED` : ""),
+      );
+      setPreview(null);
     } catch (error) {
       toast.error(error);
     } finally {
@@ -523,29 +604,17 @@ function LinearTab({ room, sessionId }: { room: RoomState; sessionId: string }) 
     );
   }
 
+  const scanDisabled = busy || (!allTeams && selectedTeamIds.size === 0);
+
   return (
     <div className="flex flex-col gap-3">
-      <div className="border-2 border-neon-green/50 bg-abyss-900/60 px-3 py-2 text-xs text-slate-300">
-        <p className="text-neon-green">⚡ CONNECTED</p>
-        <p className="mt-1">
-          {room.linear.workspaceName ?? "Workspace"} · as {room.linear.userName ?? "?"}
-        </p>
-        <p className="mt-1 text-slate-400">
-          TEAM: <span className="text-neon-cyan">{room.linear.teamName ?? "NOT SELECTED"}</span>
-        </p>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <ArcadeButton tone="dim" disabled={busy} onClick={loadTeams}>
-          {teams ? "RELOAD TEAMS" : "CHOOSE TEAM"}
-        </ArcadeButton>
-        <ArcadeButton
-          tone="green"
-          disabled={busy || !room.linear.teamId}
-          onClick={runImport}
-        >
-          IMPORT BACKLOG (25)
-        </ArcadeButton>
+      <div className="flex items-center gap-2 border-2 border-neon-green/50 bg-abyss-900/60 px-3 py-2 text-xs text-slate-300">
+        <div className="min-w-0 flex-1">
+          <p className="text-neon-green">⚡ CONNECTED</p>
+          <p className="mt-1 truncate">
+            {room.linear.workspaceName ?? "Workspace"} · as {room.linear.userName ?? "?"}
+          </p>
+        </div>
         <ArcadeButton
           tone="red"
           disabled={busy}
@@ -561,30 +630,113 @@ function LinearTab({ room, sessionId }: { room: RoomState; sessionId: string }) 
         </ArcadeButton>
       </div>
 
-      {teams && (
-        <div className="flex flex-col gap-1.5">
-          {teams.map((team) => (
-            <button
-              key={team.id}
-              onClick={() =>
-                setTeam({ roomId: room._id, sessionId, teamId: team.id, teamName: team.name })
-                  .then(() => toast.push("success", `TEAM SET: ${team.name.toUpperCase()}`))
-                  .catch((error) => toast.error(error))
-              }
-              className={cn(
-                "flex items-center gap-2 border-2 px-2.5 py-1.5 text-left text-xs",
-                room.linear.connected && room.linear.teamId === team.id
-                  ? "border-neon-cyan text-neon-cyan"
-                  : "border-abyss-600 text-slate-300 hover:border-slate-400",
-              )}
-            >
-              <span className="font-arcade text-[8px]">{team.key}</span>
-              <span className="min-w-0 flex-1 truncate">{team.name}</span>
-            </button>
-          ))}
-          {teams.length === 0 && (
-            <p className="text-center text-[11px] text-slate-500">No teams visible to this token.</p>
+      <p className="text-[11px] leading-relaxed text-slate-400">
+        Scope: <span className="text-neon-yellow">TRIAGE issues only</span> — in-progress work
+        never enters the arena. Pick teams, scan, then choose exactly which issues fight.
+      </p>
+
+      {/* Team scope: all, one, or many */}
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          onClick={() => {
+            setAllTeams(true);
+            setSelectedTeamIds(new Set());
+            setPreview(null);
+          }}
+          aria-pressed={allTeams}
+          className={cn(
+            "border-2 px-2.5 py-1.5 font-arcade text-[8px]",
+            allTeams
+              ? "border-neon-yellow text-neon-yellow shadow-neon-yellow"
+              : "border-abyss-500 text-slate-400 hover:text-slate-200",
           )}
+        >
+          ALL TEAMS
+        </button>
+        {(teams ?? []).map((team) => (
+          <button
+            key={team.id}
+            onClick={() => toggleTeam(team.id)}
+            aria-pressed={!allTeams && selectedTeamIds.has(team.id)}
+            title={team.name}
+            className={cn(
+              "border-2 px-2.5 py-1.5 font-arcade text-[8px]",
+              !allTeams && selectedTeamIds.has(team.id)
+                ? "border-neon-cyan text-neon-cyan shadow-neon-cyan"
+                : "border-abyss-500 text-slate-400 hover:text-slate-200",
+            )}
+          >
+            {team.key}
+          </button>
+        ))}
+        {teams === null && (
+          <span className="px-1 py-1.5 text-[10px] text-slate-500">loading teams…</span>
+        )}
+      </div>
+
+      <ArcadeButton tone="cyan" disabled={scanDisabled} onClick={scanTriage}>
+        {busy ? "SCANNING…" : "SCAN TRIAGE ISSUES"}
+      </ArcadeButton>
+
+      {preview !== null && preview.length === 0 && (
+        <p className="border-2 border-abyss-600 bg-abyss-900/60 px-3 py-2 text-center text-[11px] text-slate-400">
+          No triage issues in this scope. The queue is safe from you today.
+        </p>
+      )}
+
+      {preview !== null && preview.length > 0 && (
+        <div className="flex flex-col gap-2 border-2 border-neon-yellow/50 bg-abyss-900/50 p-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-arcade text-[9px] text-neon-yellow">
+              {selectedIssueIds.size}/{preview.length} SELECTED
+            </span>
+            <button
+              onClick={() => setSelectedIssueIds(new Set(preview.map((issue) => issue.id)))}
+              className="border border-abyss-500 px-2 py-0.5 font-arcade text-[7px] text-slate-300 hover:border-neon-green hover:text-neon-green"
+            >
+              ALL
+            </button>
+            <button
+              onClick={() => setSelectedIssueIds(new Set())}
+              className="border border-abyss-500 px-2 py-0.5 font-arcade text-[7px] text-slate-300 hover:border-neon-red hover:text-neon-red"
+            >
+              NONE
+            </button>
+          </div>
+          <div className="flex max-h-52 flex-col gap-1 overflow-y-auto">
+            {preview.map((issue) => {
+              const checked = selectedIssueIds.has(issue.id);
+              return (
+                <button
+                  key={issue.id}
+                  onClick={() => toggleIssue(issue.id)}
+                  aria-pressed={checked}
+                  className={cn(
+                    "flex items-center gap-2 border px-2 py-1.5 text-left text-[11px]",
+                    checked
+                      ? "border-neon-green/70 bg-abyss-900 text-slate-200"
+                      : "border-abyss-600 bg-abyss-900/40 text-slate-500",
+                  )}
+                >
+                  <span className={cn("font-arcade text-[9px]", checked ? "text-neon-green" : "text-slate-600")}>
+                    {checked ? "☑" : "☐"}
+                  </span>
+                  <span className="font-arcade text-[7px] text-neon-cyan">{issue.identifier}</span>
+                  <span className="min-w-0 flex-1 truncate">{issue.title}</span>
+                  <span className="font-arcade text-[7px] text-neon-magenta" title={issue.teamName}>
+                    {issue.teamKey}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <ArcadeButton
+            tone="green"
+            disabled={busy || selectedIssueIds.size === 0}
+            onClick={runImport}
+          >
+            TOURNAMENT {selectedIssueIds.size} ISSUE{selectedIssueIds.size === 1 ? "" : "S"} ▶
+          </ArcadeButton>
         </div>
       )}
     </div>

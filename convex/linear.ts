@@ -200,10 +200,10 @@ export const hostToken = internalQuery({
   handler: async (
     ctx,
     { roomId, sessionId },
-  ): Promise<{ accessToken: string; teamId?: string } | null> => {
+  ): Promise<{ accessToken: string } | null> => {
     const room = await requireHost(ctx, roomId, sessionId);
     if (!room.linear) return null;
-    return { accessToken: room.linear.accessToken, teamId: room.linear.teamId };
+    return { accessToken: room.linear.accessToken };
   },
 });
 
@@ -312,20 +312,6 @@ export const teams = action({
   },
 });
 
-export const setTeam = mutation({
-  args: {
-    roomId: v.id("rooms"),
-    sessionId: v.string(),
-    teamId: v.string(),
-    teamName: v.string(),
-  },
-  handler: async (ctx, { roomId, sessionId, teamId, teamName }) => {
-    const room = await requireHost(ctx, roomId, sessionId);
-    if (!room.linear) throw new ConvexError("LINEAR NOT CONNECTED");
-    await ctx.db.patch(roomId, { linear: { ...room.linear, teamId, teamName } });
-  },
-});
-
 export const disconnect = mutation({
   args: { roomId: v.id("rooms"), sessionId: v.string() },
   handler: async (ctx, { roomId, sessionId }) => {
@@ -345,39 +331,100 @@ interface LinearIssueNode {
   labels: { nodes: Array<{ name: string }> };
 }
 
-/** Pull the team's backlog (triage / backlog / unstarted states) into the queue. */
-export const importBacklog = action({
+export interface TriagePreviewItem {
+  id: string;
+  identifier: string;
+  title: string;
+  priority: number;
+  teamId: string;
+  teamKey: string;
+  teamName: string;
+}
+
+/**
+ * List issues in the **triage** state — the only state the tournament will
+ * ever touch, so in-progress work is protected by construction. Scope with
+ * `teamIds` (one or many); omit or pass empty for every team the token sees.
+ */
+export const previewTriage = action({
   args: {
     roomId: v.id("rooms"),
     sessionId: v.string(),
-    teamId: v.optional(v.string()),
+    teamIds: v.optional(v.array(v.string())),
   },
-  handler: async (ctx, { roomId, sessionId, teamId }): Promise<{ inserted: number }> => {
+  handler: async (ctx, { roomId, sessionId, teamIds }): Promise<TriagePreviewItem[]> => {
     const auth = await ctx.runQuery(internal.linear.hostToken, { roomId, sessionId });
     if (!auth) throw new ConvexError("LINEAR NOT CONNECTED");
-    const team = teamId ?? auth.teamId;
-    if (!team) throw new ConvexError("PICK A LINEAR TEAM FIRST");
 
-    const data = await linearGql<{ team: { issues: { nodes: LinearIssueNode[] } } }>(
+    const filter: Record<string, unknown> = { state: { type: { eq: "triage" } } };
+    if (teamIds && teamIds.length > 0) filter.team = { id: { in: teamIds } };
+
+    const data = await linearGql<{
+      issues: {
+        nodes: Array<{
+          id: string;
+          identifier: string;
+          title: string;
+          priority: number;
+          team: { id: string; key: string; name: string };
+        }>;
+      };
+    }>(
       auth.accessToken,
-      `query Backlog($teamId: String!) {
-        team(id: $teamId) {
-          issues(
-            first: 25,
-            filter: { state: { type: { in: ["triage", "backlog", "unstarted"] } } },
-            orderBy: updatedAt
-          ) {
-            nodes {
-              id identifier title description url priority estimate
-              labels { nodes { name } }
-            }
+      `query Triage($filter: IssueFilter) {
+        issues(first: 100, filter: $filter, orderBy: updatedAt) {
+          nodes { id identifier title priority team { id key name } }
+        }
+      }`,
+      { filter },
+    );
+
+    return data.issues.nodes.map((node) => ({
+      id: node.id,
+      identifier: node.identifier,
+      title: node.title,
+      priority: node.priority,
+      teamId: node.team.id,
+      teamKey: node.team.key,
+      teamName: node.team.name,
+    }));
+  },
+});
+
+/**
+ * Import the host's hand-picked triage issues as bosses. The triage-state
+ * filter is re-applied server-side on the fetch, so even a hand-crafted id
+ * list can never pull an in-progress issue into the tournament.
+ */
+export const importSelected = action({
+  args: {
+    roomId: v.id("rooms"),
+    sessionId: v.string(),
+    issueIds: v.array(v.string()),
+  },
+  handler: async (
+    ctx,
+    { roomId, sessionId, issueIds },
+  ): Promise<{ inserted: number; skipped: number }> => {
+    if (issueIds.length === 0) throw new ConvexError("SELECT AT LEAST ONE ISSUE");
+    if (issueIds.length > 100) throw new ConvexError("MAX 100 ISSUES PER IMPORT");
+    const auth = await ctx.runQuery(internal.linear.hostToken, { roomId, sessionId });
+    if (!auth) throw new ConvexError("LINEAR NOT CONNECTED");
+
+    const data = await linearGql<{ issues: { nodes: LinearIssueNode[] } }>(
+      auth.accessToken,
+      `query TriageByIds($filter: IssueFilter) {
+        issues(first: 100, filter: $filter) {
+          nodes {
+            id identifier title description url priority estimate
+            labels { nodes { name } }
           }
         }
       }`,
-      { teamId: team },
+      { filter: { id: { in: issueIds }, state: { type: { eq: "triage" } } } },
     );
 
-    const issues = data.team.issues.nodes.map((node) => ({
+    const issues = data.issues.nodes.map((node) => ({
       linearIssueId: node.id,
       identifier: node.identifier,
       title: node.title,
@@ -387,10 +434,10 @@ export const importBacklog = action({
       priority: node.priority,
     }));
 
-    const result: { inserted: number } = await ctx.runMutation(internal.tickets.importMany, {
-      roomId,
-      issues,
-    });
+    const result: { inserted: number; skipped: number } = await ctx.runMutation(
+      internal.tickets.importMany,
+      { roomId, issues },
+    );
     return result;
   },
 });

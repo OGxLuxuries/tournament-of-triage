@@ -134,8 +134,8 @@ export function Lobby({ room, players, tickets, me, now, sessionId }: LobbyProps
 
             {room.linear.connected ? (
               <p className="border-2 border-neon-green/50 bg-abyss-900/60 px-3 py-2 text-xs text-neon-green">
-                ⚡ LINEAR LINKED · {room.linear.workspaceName?.toUpperCase() ?? "WORKSPACE"}
-                {room.linear.teamName ? ` · ${room.linear.teamName.toUpperCase()}` : " · PICK A TEAM IN THE HOST CONSOLE"}
+                ⚡ LINEAR LINKED · {room.linear.workspaceName?.toUpperCase() ?? "WORKSPACE"} · SCAN
+                TRIAGE IN THE HOST CONSOLE
               </p>
             ) : (
               <>

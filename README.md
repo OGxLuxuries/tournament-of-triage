@@ -19,7 +19,7 @@ for the host, deployable 100% free on **Vercel**.
 | 🕹️ 3D Neon Cabinet | CSS-3D vote buttons that hover-glow (magenta/cyan) and physically depress. **Anti-Spam Tilt:** >5 presses in 2s → screen shake + flashing `TILT!` lockout. |
 | 🐲 Mega Boss progression | Active ticket framed in a `TEAM vs BOSS` VS screen with HP bar, threat level, type and abilities parsed from the description. **Sync & Advance** fires a per-player laser volley, drains HP to 0, stamps `DEFEATED!`, and slides in the next level. |
 | 🤖 Skills Matrix + Smart Agent | Host uploads a CSV (`Email/Username, Skills, Confidence`). Any consensus of 3 wakes the agent: it matches skills against the ticket text across **online** players and pairs a **Navigator** (has the skill) with an **Implementor** (doesn't), as a Markdown briefing. |
-| 🔄 Linear sync | Host OAuth (`read,write`). Import the team backlog as bosses; on defeat the estimate is written to the ticket and a **👾 Consensus Board** comment (vote table, medals, pairing intel) is posted. |
+| 🔄 Linear sync | Host links via OAuth or a personal API key. Imports are scoped to **triage-state issues only** (enforced server-side, so in-progress work is untouchable): filter by one team, several, or all, then hand-pick which issues enter the tournament. On defeat the estimate is written to the ticket and a **👾 Consensus Board** comment (vote table, medals, pairing intel) is posted. |
 | 👻 Presence | Convex heartbeat presence — offline players drop out of the READY count and the agent's pairing pool. |
 
 ## Repo map

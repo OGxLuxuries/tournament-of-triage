@@ -46,7 +46,11 @@ export const loadDemo = mutation({
   },
 });
 
-/** Replace the queued Linear backlog (defeated bosses keep their trophies). */
+/**
+ * Append the host's selected Linear issues to the queue. Issues already in
+ * the room (any status) are skipped, so repeated scans across different team
+ * scopes accumulate instead of clobbering each other.
+ */
 export const importMany = internalMutation({
   args: {
     roomId: v.id("rooms"),
@@ -62,28 +66,19 @@ export const importMany = internalMutation({
       }),
     ),
   },
-  handler: async (ctx, { roomId, issues }) => {
+  handler: async (ctx, { roomId, issues }): Promise<{ inserted: number; skipped: number }> => {
     const existing = await ctx.db
       .query("tickets")
       .withIndex("by_room", (q) => q.eq("roomId", roomId))
       .collect();
-
-    for (const ticket of existing) {
-      if (ticket.source === "linear" && ticket.status === "queued") {
-        await ctx.db.delete(ticket._id);
-      }
-    }
-    const keptIssueIds = new Set(
-      existing
-        .filter((ticket) => ticket.status !== "queued" || ticket.source !== "linear")
-        .map((ticket) => ticket.linearIssueId)
-        .filter(Boolean),
+    const knownIssueIds = new Set(
+      existing.map((ticket) => ticket.linearIssueId).filter(Boolean),
     );
 
     let order = existing.reduce((max, ticket) => Math.max(max, ticket.order), 0);
     let inserted = 0;
     for (const issue of issues) {
-      if (keptIssueIds.has(issue.linearIssueId)) continue;
+      if (knownIssueIds.has(issue.linearIssueId)) continue;
       order += 1;
       inserted += 1;
       await ctx.db.insert("tickets", {
@@ -100,7 +95,25 @@ export const importMany = internalMutation({
         status: "queued",
       });
     }
-    return { inserted };
+    return { inserted, skipped: issues.length - inserted };
+  },
+});
+
+/** Host benches a queued boss — e.g. a triage issue imported by mistake. */
+export const remove = mutation({
+  args: {
+    roomId: v.id("rooms"),
+    sessionId: v.string(),
+    ticketId: v.id("tickets"),
+  },
+  handler: async (ctx, { roomId, sessionId, ticketId }) => {
+    await requireHost(ctx, roomId, sessionId);
+    const ticket = await ctx.db.get(ticketId);
+    if (!ticket || ticket.roomId !== roomId) throw new ConvexError("TICKET NOT FOUND");
+    if (ticket.status !== "queued") {
+      throw new ConvexError("ONLY QUEUED BOSSES CAN BE BENCHED");
+    }
+    await ctx.db.delete(ticketId);
   },
 });
 
