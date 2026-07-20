@@ -8,7 +8,9 @@ import { AudioProvider } from "./lib/audio-context";
 import { TiltProvider } from "./lib/tilt";
 import { ToastProvider } from "./lib/toast";
 
-const convexUrl = import.meta.env.VITE_CONVEX_URL;
+// Trim defensively: a stray space pasted into a dashboard env var otherwise
+// crashes the client constructor ("Invalid deployment address").
+const convexUrl = import.meta.env.VITE_CONVEX_URL?.trim();
 const convex = convexUrl ? new ConvexReactClient(convexUrl) : null;
 
 export default function App() {
