@@ -21,7 +21,7 @@ import { cn } from "../lib/cn";
 import { parseSkillsCsv, type SkillRow } from "../lib/csv";
 import { useToast } from "../lib/toast";
 import { isOnline, type PlayerRow, type RoomState, type TicketRow } from "../lib/types";
-import { ArcadeButton, Panel } from "./ui";
+import { ArcadeButton } from "./ui";
 
 type Tab = "missions" | "timer" | "skills" | "linear";
 
@@ -31,26 +31,26 @@ interface HostDockProps {
   tickets: TicketRow[];
   now: number;
   sessionId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-/** Floating HOST CONSOLE drawer: queue, timers, skills matrix, Linear sync. */
-export function HostDock({ room, players, tickets, now, sessionId }: HostDockProps) {
-  const [open, setOpen] = useState(false);
+/**
+ * The HOST CONSOLE: a full-height panel docked to the right edge. It slides
+ * in over a translate transition and (on lg+ screens) the page content
+ * shifts left so the arena stays fully visible. State lives in RoomScreen
+ * so the layout can react; the panel stays mounted to preserve scan results.
+ */
+export function HostDock({
+  room,
+  players,
+  tickets,
+  now,
+  sessionId,
+  open,
+  onOpenChange,
+}: HostDockProps) {
   const [tab, setTab] = useState<Tab>("missions");
-
-  if (!open) {
-    return (
-      <button
-        onClick={() => {
-          audio.click();
-          setOpen(true);
-        }}
-        className="fixed bottom-4 right-4 z-40 flex items-center gap-2 border-2 border-neon-magenta bg-abyss-900/95 px-4 py-3 font-arcade text-[10px] text-neon-magenta shadow-neon-magenta hover:animate-flicker"
-      >
-        <Settings2 size={14} aria-hidden /> HOST CONSOLE
-      </button>
-    );
-  }
 
   const tabs: Array<{ id: Tab; label: string; icon: typeof Settings2 }> = [
     { id: "missions", label: "MISSIONS", icon: ListOrdered },
@@ -60,9 +60,47 @@ export function HostDock({ room, players, tickets, now, sessionId }: HostDockPro
   ];
 
   return (
-    <div className="fixed inset-x-2 bottom-2 z-40 sm:inset-x-auto sm:right-4 sm:w-[440px]">
-      <Panel tone="magenta" className="max-h-[75vh] overflow-y-auto">
-        <div className="mb-3 flex items-center gap-1">
+    <>
+      {!open && (
+        <button
+          onClick={() => {
+            audio.click();
+            onOpenChange(true);
+          }}
+          className="fixed bottom-4 right-4 z-40 flex items-center gap-2 border-2 border-neon-magenta bg-abyss-900/95 px-4 py-3 font-arcade text-[10px] text-neon-magenta shadow-neon-magenta hover:animate-flicker"
+        >
+          <Settings2 size={14} aria-hidden /> HOST CONSOLE
+        </button>
+      )}
+
+      <aside
+        aria-label="Host console"
+        aria-hidden={!open}
+        className={cn(
+          "fixed inset-y-0 right-0 z-40 flex w-[min(94vw,460px)] flex-col",
+          "border-l-[3px] border-neon-magenta bg-abyss-900/95 backdrop-blur",
+          "shadow-[-14px_0_44px_rgba(255,46,196,0.22)] transition-transform duration-300",
+          open ? "translate-x-0" : "pointer-events-none translate-x-full",
+        )}
+      >
+        <header className="flex items-center gap-2 border-b-2 border-abyss-600 px-4 py-3">
+          <Settings2 size={14} className="text-neon-magenta" aria-hidden />
+          <span className="font-arcade text-[10px] tracking-widest text-neon-magenta">
+            HOST CONSOLE
+          </span>
+          <button
+            onClick={() => {
+              audio.click();
+              onOpenChange(false);
+            }}
+            aria-label="Close host console"
+            className="ml-auto border-2 border-abyss-500 p-1.5 text-slate-400 hover:border-neon-red hover:text-neon-red"
+          >
+            <X size={12} />
+          </button>
+        </header>
+
+        <nav className="flex gap-1 border-b-2 border-abyss-600 px-3 py-2" aria-label="Console tabs">
           {tabs.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -70,6 +108,7 @@ export function HostDock({ room, players, tickets, now, sessionId }: HostDockPro
                 audio.click();
                 setTab(id);
               }}
+              aria-pressed={tab === id}
               className={cn(
                 "flex items-center gap-1.5 border-2 px-2.5 py-1.5 font-arcade text-[8px]",
                 tab === id
@@ -81,25 +120,20 @@ export function HostDock({ room, players, tickets, now, sessionId }: HostDockPro
               {label}
             </button>
           ))}
-          <button
-            onClick={() => setOpen(false)}
-            aria-label="Close host console"
-            className="ml-auto border-2 border-abyss-500 p-1.5 text-slate-400 hover:border-neon-red hover:text-neon-red"
-          >
-            <X size={12} />
-          </button>
-        </div>
+        </nav>
 
-        {tab === "missions" && (
-          <MissionsTab room={room} tickets={tickets} sessionId={sessionId} />
-        )}
-        {tab === "timer" && <TimerTab room={room} sessionId={sessionId} />}
-        {tab === "skills" && (
-          <SkillsTab room={room} players={players} now={now} sessionId={sessionId} />
-        )}
-        {tab === "linear" && <LinearTab room={room} sessionId={sessionId} />}
-      </Panel>
-    </div>
+        <div className="flex-1 overflow-y-auto p-3">
+          {tab === "missions" && (
+            <MissionsTab room={room} tickets={tickets} sessionId={sessionId} />
+          )}
+          {tab === "timer" && <TimerTab room={room} sessionId={sessionId} />}
+          {tab === "skills" && (
+            <SkillsTab room={room} players={players} now={now} sessionId={sessionId} />
+          )}
+          {tab === "linear" && <LinearTab room={room} sessionId={sessionId} />}
+        </div>
+      </aside>
+    </>
   );
 }
 
@@ -453,7 +487,6 @@ interface TriagePreviewItem {
 
 function LinearTab({ room, sessionId }: { room: RoomState; sessionId: string }) {
   const toast = useToast();
-  const getAuthUrl = useAction(api.linear.authUrl);
   const connectWithKey = useAction(api.linear.connectApiKey);
   const fetchTeams = useAction(api.linear.teams);
   const previewTriage = useAction(api.linear.previewTriage);
@@ -477,17 +510,6 @@ function LinearTab({ room, sessionId }: { room: RoomState; sessionId: string }) 
       .then(setTeams)
       .catch((error) => toast.error(error));
   }, [room.linear.connected, room._id, sessionId, fetchTeams, toast]);
-
-  const connect = async () => {
-    setBusy(true);
-    try {
-      const url = await getAuthUrl({ roomId: room._id, sessionId });
-      window.location.href = url;
-    } catch (error) {
-      toast.error(error);
-      setBusy(false);
-    }
-  };
 
   const toggleTeam = (teamId: string) => {
     setAllTeams(false);
@@ -566,26 +588,15 @@ function LinearTab({ room, sessionId }: { room: RoomState; sessionId: string }) 
   if (!room.linear.connected) {
     return (
       <div className="flex flex-col gap-3">
+        <p className="font-arcade text-[9px] text-neon-cyan">LINK LINEAR · API KEY</p>
         <p className="text-xs leading-relaxed text-slate-400">
-          Link Linear to pull the backlog and push estimates + the consensus board back to each
-          ticket. Two ways in:
+          Link Linear to import triage issues as bosses and push estimates + the consensus board
+          back to each ticket.
         </p>
-        <ArcadeButton tone="cyan" big disabled={busy} onClick={connect}>
-          <span className="flex items-center justify-center gap-2">
-            <Link2 size={14} aria-hidden /> CONNECT WITH OAUTH
-          </span>
-        </ArcadeButton>
-        <p className="text-[11px] leading-relaxed text-slate-500">
-          OAuth needs a workspace admin to create the app +{" "}
-          <span className="text-neon-cyan">LINEAR_CLIENT_ID/SECRET</span> on Convex (README).
-        </p>
-        <div className="flex items-center gap-2 font-arcade text-[8px] text-slate-500">
-          <span className="h-px flex-1 bg-abyss-500" /> OR <span className="h-px flex-1 bg-abyss-500" />
-        </div>
         <p className="text-[11px] leading-relaxed text-slate-400">
-          No admin rights? Any member can mint a personal key: Linear →{" "}
+          Any workspace member can mint a key: Linear →{" "}
           <span className="text-neon-cyan">Settings → Security &amp; access → API keys</span>. It's
-          validated, stored server-side only, and never shown again.
+          validated with Linear, stored server-side only, and never shown again.
         </p>
         <input
           type="password"

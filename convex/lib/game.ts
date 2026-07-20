@@ -15,9 +15,6 @@ export const PRESENCE_TTL_MS = 45_000;
 /** How long the DEFEATED! animation plays before the next boss slides in. */
 export const VICTORY_LAP_MS = 4_600;
 
-/** OAuth state nonces expire after this window. */
-export const OAUTH_STATE_TTL_MS = 15 * 60 * 1000;
-
 export const MAX_PLAYERS = 16;
 export const MAX_SKILL_ROWS = 200;
 
@@ -31,14 +28,6 @@ export function randomCode(length = 5): string {
     code += ROOM_CODE_ALPHABET[Math.floor(Math.random() * ROOM_CODE_ALPHABET.length)];
   }
   return code;
-}
-
-export function randomToken(): string {
-  try {
-    return crypto.randomUUID() + crypto.randomUUID().replaceAll("-", "");
-  } catch {
-    return Array.from({ length: 4 }, () => Math.random().toString(36).slice(2)).join("");
-  }
 }
 
 /** Deterministic 32-bit hash, used to seed pixel avatars. */

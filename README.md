@@ -19,7 +19,7 @@ for the host, deployable 100% free on **Vercel**.
 | 🕹️ 3D Neon Cabinet | CSS-3D vote buttons that hover-glow (magenta/cyan) and physically depress. **Anti-Spam Tilt:** >5 presses in 2s → screen shake + flashing `TILT!` lockout. |
 | 🐲 Mega Boss progression | Active ticket framed in a `TEAM vs BOSS` VS screen with HP bar, threat level, type and abilities parsed from the description. **Sync & Advance** fires a per-player laser volley, drains HP to 0, stamps `DEFEATED!`, and slides in the next level. |
 | 🤖 Skills Matrix + Smart Agent | Host uploads a CSV (`Email/Username, Skills, Confidence`). Any consensus of 3 wakes the agent: it matches skills against the ticket text across **online** players and pairs a **Navigator** (has the skill) with an **Implementor** (doesn't), as a Markdown briefing. |
-| 🔄 Linear sync | Host links via OAuth or a personal API key. Imports are scoped to **triage-state issues only** (enforced server-side, so in-progress work is untouchable): filter by one team, several, or all, then hand-pick which issues enter the tournament. On defeat the estimate is written to the ticket and a **👾 Consensus Board** comment (vote table, medals, pairing intel) is posted. |
+| 🔄 Linear sync | Host links with a personal API key (pasted in-app, validated with Linear, stored server-side only). Imports are scoped to **triage-state issues only** (enforced server-side, so in-progress work is untouchable): filter by one team, several, or all, then hand-pick which issues enter the tournament. On defeat the estimate is written to the ticket and a **👾 Consensus Board** comment (vote table, medals, pairing intel) is posted. |
 | 👻 Presence | Convex heartbeat presence — offline players drop out of the READY count and the agent's pairing pool. |
 
 ## Repo map
@@ -32,8 +32,7 @@ convex/
   votes.ts         # blind voting (masked until reveal)
   tickets.ts       # demo quest, Linear import, defeat finalizer
   skills.ts        # skills matrix storage
-  linear.ts        # OAuth handshake, team/backlog fetch, estimate+comment sync
-  http.ts          # GET /linear/callback (OAuth redirect)
+  linear.ts        # API-key connect, triage scan/import, estimate+comment sync
   lib/game.ts      # consensus math, Smart Agent pairing, comment builder, demo bosses
 src/
   lib/audio.ts     # the synthwave/SFX engine (Web Audio)
@@ -51,7 +50,7 @@ npm run dev             # terminal 2 — http://localhost:5173
 ```
 
 No Convex account handy? `npx convex dev` offers an anonymous local deployment —
-everything works offline except Linear OAuth.
+everything works offline except Linear sync.
 
 **Play:** POWER ON a cabinet as host → LOAD DEMO QUEST → START GAME. Open a second
 browser/incognito tab, join with the room code and the handle `ada` or `grace`
@@ -60,29 +59,13 @@ HOST CONSOLE → SKILLS to see the Smart Agent fire on a 3-vote.
 
 ## Linear setup (host features)
 
-Two ways to link Linear — both unlock the same features (backlog import,
-estimate write-back, consensus-board comments):
-
-**Option 1 — personal API key (no admin rights needed).** Any workspace member
-can mint one: Linear → Settings → **Security & access → API keys**. The host
-pastes it into **HOST CONSOLE → LINEAR** in the cabinet; it's validated against
-Linear and stored server-side only. Zero deployment config required.
-
-**Option 2 — OAuth app (workspace admins).**
-
-1. Linear → Settings → API → **OAuth applications** → create one.
-2. Callback URL: `https://<your-deployment>.convex.site/linear/callback`
-   (the `.convex.site` HTTP-actions URL, **not** `.convex.cloud` — find it via `npx convex dashboard`).
-3. Wire the secrets into Convex (never into the repo):
-
-```bash
-npx convex env set LINEAR_CLIENT_ID     <client id>
-npx convex env set LINEAR_CLIENT_SECRET <client secret>
-npx convex env set APP_URL              http://localhost:5173   # or your Vercel URL
-```
-
-The host then presses **CONNECT WITH OAUTH** in the cabinet. Either way, tokens
-live only in Convex tables/env — they are never sent to browsers or committed.
+One step, no admin rights and no deployment config needed. Any workspace
+member can mint a personal API key: Linear → Settings →
+**Security & access → API keys** (read/write). The host pastes it into the
+cabinet — the **LINK LINEAR** card in the lobby, or **HOST CONSOLE → LINEAR**
+— where it's validated against Linear and stored server-side only. It unlocks
+triage import, estimate write-back, and consensus-board comments. Keys are
+never sent to other browsers or committed anywhere.
 
 ## Deploy free on Vercel
 

@@ -1,5 +1,5 @@
 import { useAction, useMutation } from "convex/react";
-import { Crown, Gamepad2, Link2, Play, Rocket, Wifi, WifiOff } from "lucide-react";
+import { Crown, Gamepad2, KeyRound, Play, Rocket, Wifi, WifiOff } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { audio } from "../lib/audio";
@@ -22,19 +22,25 @@ export function Lobby({ room, players, tickets, me, now, sessionId }: LobbyProps
   const toast = useToast();
   const loadDemo = useMutation(api.tickets.loadDemo);
   const startRound = useMutation(api.rooms.startRound);
-  const getAuthUrl = useAction(api.linear.authUrl);
+  const connectApiKey = useAction(api.linear.connectApiKey);
   const [busy, setBusy] = useState(false);
+  const [apiKey, setApiKey] = useState("");
 
   const queued = tickets.filter((ticket) => ticket.status === "queued");
   const defeated = tickets.filter((ticket) => ticket.status === "defeated");
 
-  const connectLinear = async () => {
+  const submitKey = async () => {
     setBusy(true);
     try {
-      const url = await getAuthUrl({ roomId: room._id, sessionId });
-      window.location.href = url;
+      const result = await connectApiKey({ roomId: room._id, sessionId, apiKey });
+      setApiKey("");
+      toast.push(
+        "success",
+        `LINEAR LINKED · ${(result.workspace ?? "WORKSPACE").toUpperCase()} AS ${(result.user ?? "?").toUpperCase()}`,
+      );
     } catch (error) {
       toast.error(error);
+    } finally {
       setBusy(false);
     }
   };
@@ -138,17 +144,27 @@ export function Lobby({ room, players, tickets, me, now, sessionId }: LobbyProps
                 TRIAGE IN THE HOST CONSOLE
               </p>
             ) : (
-              <>
-                <ArcadeButton tone="cyan" disabled={busy} onClick={connectLinear}>
-                  <span className="flex items-center justify-center gap-2">
-                    <Link2 size={14} aria-hidden /> CONNECT LINEAR (OAUTH)
-                  </span>
-                </ArcadeButton>
-                <p className="text-[11px] leading-relaxed text-slate-500">
-                  No OAuth app? Paste a personal API key in{" "}
-                  <span className="text-neon-magenta">HOST CONSOLE → LINEAR</span> instead.
+              <div className="flex flex-col gap-2 border-2 border-neon-cyan/50 bg-abyss-900/60 p-3">
+                <p className="font-arcade text-[9px] text-neon-cyan">
+                  <KeyRound size={11} className="mr-1 inline" aria-hidden />
+                  LINK LINEAR · API KEY
                 </p>
-              </>
+                <p className="text-[11px] leading-relaxed text-slate-400">
+                  Linear → <span className="text-neon-cyan">Settings → Security &amp; access →
+                  API keys</span>. Validated with Linear and stored server-side only.
+                </p>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(event) => setApiKey(event.target.value)}
+                  placeholder="lin_api_…"
+                  autoComplete="off"
+                  className="w-full border-2 border-abyss-500 bg-abyss-950/80 px-3 py-2 font-mono text-xs text-slate-200 placeholder:text-slate-600 focus:border-neon-cyan focus:outline-none"
+                />
+                <ArcadeButton tone="cyan" disabled={busy || !apiKey.trim()} onClick={submitKey}>
+                  CONNECT LINEAR
+                </ArcadeButton>
+              </div>
             )}
 
             <ArcadeButton tone="yellow" disabled={busy} onClick={handleLoadDemo}>

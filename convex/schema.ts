@@ -103,12 +103,4 @@ export default defineSchema({
     skills: v.array(v.string()),
     confidence: v.number(),
   }).index("by_room", ["roomId"]),
-
-  /** Short-lived CSRF state for the Linear OAuth handshake. */
-  oauthStates: defineTable({
-    roomId: v.id("rooms"),
-    sessionId: v.string(),
-    nonce: v.string(),
-    createdAt: v.number(),
-  }).index("by_nonce", ["nonce"]),
 });

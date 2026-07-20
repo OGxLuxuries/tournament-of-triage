@@ -1,29 +1,20 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
 import {
   action,
-  internalAction,
   internalMutation,
   internalQuery,
   mutation,
 } from "./_generated/server";
-import {
-  OAUTH_STATE_TTL_MS,
-  buildConsensusComment,
-  randomToken,
-  requireHost,
-} from "./lib/game";
+import { buildConsensusComment, requireHost } from "./lib/game";
 
-const LINEAR_AUTHORIZE_URL = "https://linear.app/oauth/authorize";
-const LINEAR_TOKEN_URL = "https://api.linear.app/oauth/token";
 const LINEAR_GRAPHQL_URL = "https://api.linear.app/graphql";
 
 /* ──────────────────────────────────────────────────────────────────────────
  * GraphQL plumbing
  * ────────────────────────────────────────────────────────────────────────── */
 
-/** Personal API keys are sent bare; OAuth access tokens need `Bearer`. */
+/** Linear personal API keys are sent bare in the Authorization header. */
 function authHeader(token: string): string {
   return token.startsWith("lin_api_") ? token : `Bearer ${token}`;
 }
@@ -56,67 +47,10 @@ interface LinearTeam {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
- * OAuth handshake
+ * Connect (personal API key)
  * ────────────────────────────────────────────────────────────────────────── */
 
-/** Purge stale CSRF states, mint a fresh one bound to (room, host session). */
-export const createOauthState = internalMutation({
-  args: { roomId: v.id("rooms"), sessionId: v.string() },
-  handler: async (ctx, { roomId, sessionId }): Promise<string> => {
-    await requireHost(ctx, roomId, sessionId);
-    const now = Date.now();
-    const all = await ctx.db.query("oauthStates").collect();
-    for (const state of all) {
-      if (now - state.createdAt > OAUTH_STATE_TTL_MS) await ctx.db.delete(state._id);
-    }
-    const nonce = randomToken();
-    await ctx.db.insert("oauthStates", { roomId, sessionId, nonce, createdAt: now });
-    return nonce;
-  },
-});
-
-/** Consume (validate + delete) a CSRF state. Single-use. */
-export const takeState = internalMutation({
-  args: { state: v.string() },
-  handler: async (ctx, { state }): Promise<{ roomId: Id<"rooms"> }> => {
-    const row = await ctx.db
-      .query("oauthStates")
-      .withIndex("by_nonce", (q) => q.eq("nonce", state))
-      .unique();
-    if (!row) throw new Error("Unknown or reused OAuth state — restart the connect flow.");
-    await ctx.db.delete(row._id);
-    if (Date.now() - row.createdAt > OAUTH_STATE_TTL_MS) {
-      throw new Error("OAuth state expired — restart the connect flow.");
-    }
-    return { roomId: row.roomId };
-  },
-});
-
-export const attachLinear = internalMutation({
-  args: {
-    roomId: v.id("rooms"),
-    accessToken: v.string(),
-    userName: v.optional(v.string()),
-    workspaceName: v.optional(v.string()),
-    team: v.optional(v.object({ id: v.string(), name: v.string() })),
-  },
-  handler: async (ctx, { roomId, accessToken, userName, workspaceName, team }): Promise<string> => {
-    const room = await ctx.db.get(roomId);
-    if (!room) throw new Error("Room vanished mid-handshake");
-    await ctx.db.patch(roomId, {
-      linear: {
-        accessToken,
-        userName,
-        workspaceName,
-        teamId: team?.id,
-        teamName: team?.name,
-      },
-    });
-    return room.code;
-  },
-});
-
-/** Like attachLinear, but gated on the host's session (API-key flow). */
+/** Store the validated credentials on the room. Gated on the host session. */
 export const attachLinearAsHost = internalMutation({
   args: {
     roomId: v.id("rooms"),
@@ -144,10 +78,10 @@ export const attachLinearAsHost = internalMutation({
 });
 
 /**
- * Connect with a Linear personal API key instead of OAuth — for hosts whose
- * workspace role can't create OAuth applications. The key is validated
- * against Linear before it is stored, and it never leaves the server after
- * this call: public queries only ever report `connected: true`.
+ * Connect the room to Linear with a personal API key — any workspace member
+ * can mint one. The key is validated against Linear before it is stored, and
+ * it never leaves the server after this call: public queries only ever
+ * report `connected: true`.
  */
 export const connectApiKey = action({
   args: { roomId: v.id("rooms"), sessionId: v.string(), apiKey: v.string() },
@@ -204,94 +138,6 @@ export const hostToken = internalQuery({
     const room = await requireHost(ctx, roomId, sessionId);
     if (!room.linear) return null;
     return { accessToken: room.linear.accessToken };
-  },
-});
-
-/**
- * Build the Linear authorization URL. The redirect lands on this deployment's
- * HTTP router (`<convex-site>/linear/callback`), keeping the client secret
- * server-side for the code exchange.
- */
-export const authUrl = action({
-  args: { roomId: v.id("rooms"), sessionId: v.string() },
-  handler: async (ctx, { roomId, sessionId }): Promise<string> => {
-    const clientId = process.env.LINEAR_CLIENT_ID;
-    if (!clientId) {
-      throw new ConvexError(
-        "LINEAR OAUTH NOT CONFIGURED — run `npx convex env set LINEAR_CLIENT_ID …` (see README)",
-      );
-    }
-    const nonce: string = await ctx.runMutation(internal.linear.createOauthState, {
-      roomId,
-      sessionId,
-    });
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: `${process.env.CONVEX_SITE_URL}/linear/callback`,
-      response_type: "code",
-      scope: "read,write",
-      state: nonce,
-      prompt: "consent",
-      actor: "user",
-    });
-    return `${LINEAR_AUTHORIZE_URL}?${params.toString()}`;
-  },
-});
-
-/** Called by the HTTP callback: exchange the code, attach the workspace. */
-export const completeOauth = internalAction({
-  args: { code: v.string(), state: v.string() },
-  handler: async (ctx, { code, state }): Promise<string | null> => {
-    const clientId = process.env.LINEAR_CLIENT_ID;
-    const clientSecret = process.env.LINEAR_CLIENT_SECRET;
-    if (!clientId || !clientSecret) {
-      throw new Error("LINEAR_CLIENT_ID / LINEAR_CLIENT_SECRET are not set on this deployment.");
-    }
-
-    const { roomId } = await ctx.runMutation(internal.linear.takeState, { state });
-
-    const tokenResponse = await fetch(LINEAR_TOKEN_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        code,
-        redirect_uri: `${process.env.CONVEX_SITE_URL}/linear/callback`,
-        client_id: clientId,
-        client_secret: clientSecret,
-      }),
-    });
-    if (!tokenResponse.ok) {
-      throw new Error(`Token exchange failed (HTTP ${tokenResponse.status})`);
-    }
-    const tokenJson = (await tokenResponse.json()) as { access_token?: string };
-    if (!tokenJson.access_token) throw new Error("Linear returned no access token");
-
-    const data = await linearGql<{
-      viewer: { name: string };
-      organization: { name: string };
-      teams: { nodes: LinearTeam[] };
-    }>(
-      tokenJson.access_token,
-      `query Bootstrap {
-        viewer { name }
-        organization { name }
-        teams(first: 50) { nodes { id key name } }
-      }`,
-    );
-
-    const teams = data.teams.nodes;
-    const roomCode: string = await ctx.runMutation(internal.linear.attachLinear, {
-      roomId,
-      accessToken: tokenJson.access_token,
-      userName: data.viewer.name,
-      workspaceName: data.organization.name,
-      team: teams.length === 1 ? { id: teams[0].id, name: teams[0].name } : undefined,
-    });
-
-    const appUrl = process.env.APP_URL;
-    if (!appUrl) return null;
-    return `${appUrl.replace(/\/+$/, "")}/room/${roomCode}?linear=connected`;
   },
 });
 

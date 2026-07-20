@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { Check, Copy, Crown, Users, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { ControllerDeck } from "../components/ControllerDeck";
 import { GameOverPanel } from "../components/GameOverPanel";
@@ -11,6 +11,7 @@ import { VsArena } from "../components/VsArena";
 import { ArcadeButton, Blink, Panel } from "../components/ui";
 import { audio } from "../lib/audio";
 import { useAudioControls } from "../lib/audio-context";
+import { cn } from "../lib/cn";
 import { getSessionId } from "../lib/session";
 import { useToast } from "../lib/toast";
 import { isOnline } from "../lib/types";
@@ -20,7 +21,6 @@ export function RoomScreen() {
   const sessionId = useMemo(getSessionId, []);
   const toast = useToast();
   const { muted, toggleMuted } = useAudioControls();
-  const [searchParams, setSearchParams] = useSearchParams();
 
   const room = useQuery(api.rooms.get, { code });
   const me = useQuery(api.players.me, { code, sessionId });
@@ -32,6 +32,7 @@ export function RoomScreen() {
 
   const [now, setNow] = useState(() => Date.now());
   const [copied, setCopied] = useState(false);
+  const [dockOpen, setDockOpen] = useState(false);
 
   const activeTicket = tickets?.find((ticket) => ticket._id === room?.activeTicketId);
   const onlineCount = players?.filter((player) => isOnline(player, now)).length ?? 0;
@@ -83,16 +84,6 @@ export function RoomScreen() {
     else if (status === "complete") audio.fanfare();
   }, [room?.status, activeTicket?.unanimous, onlineCount]);
 
-  /* Returning from the Linear OAuth dance. */
-  useEffect(() => {
-    if (searchParams.get("linear") === "connected") {
-      toast.push("success", "LINEAR LINK ESTABLISHED — BACKLOG WEAPONS ONLINE");
-      const next = new URLSearchParams(searchParams);
-      next.delete("linear");
-      setSearchParams(next, { replace: true });
-    }
-  }, [searchParams, setSearchParams, toast]);
-
   const copyCode = async () => {
     try {
       await navigator.clipboard.writeText(room?.code ?? code);
@@ -140,7 +131,13 @@ export function RoomScreen() {
     room.status === "voting" || room.status === "revealed" || room.status === "victory";
 
   return (
-    <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-4 px-3 py-4 sm:px-6">
+    <div
+      className={cn(
+        "transition-[padding] duration-300",
+        me.isHost && dockOpen && "lg:pr-[460px]",
+      )}
+    >
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-4 px-3 py-4 sm:px-6">
       {/* ── Marquee header ─────────────────────────────────────────────── */}
       <header className="panel-chrome pixel-frame-dim flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
         <Link to="/" className="font-arcade text-xs text-glow-magenta">
@@ -213,10 +210,11 @@ export function RoomScreen() {
         )}
       </main>
 
-      {/* ── The cabinet deck ───────────────────────────────────────────── */}
-      {inBattle && (
-        <ControllerDeck room={room} votes={votes} me={me} sessionId={sessionId} />
-      )}
+        {/* ── The cabinet deck ─────────────────────────────────────────── */}
+        {inBattle && (
+          <ControllerDeck room={room} votes={votes} me={me} sessionId={sessionId} />
+        )}
+      </div>
 
       {me.isHost && (
         <HostDock
@@ -225,6 +223,8 @@ export function RoomScreen() {
           tickets={tickets ?? []}
           now={now}
           sessionId={sessionId}
+          open={dockOpen}
+          onOpenChange={setDockOpen}
         />
       )}
     </div>
