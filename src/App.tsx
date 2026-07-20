@@ -8,9 +8,11 @@ import { AudioProvider } from "./lib/audio-context";
 import { TiltProvider } from "./lib/tilt";
 import { ToastProvider } from "./lib/toast";
 
-// Trim defensively: a stray space pasted into a dashboard env var otherwise
-// crashes the client constructor ("Invalid deployment address").
-const convexUrl = import.meta.env.VITE_CONVEX_URL?.trim();
+// Accept only a real URL: stray spaces crash the client constructor, and a
+// Vercel "Sensitive" env var pulled outside Vercel's builders bakes in the
+// literal placeholder "[SENSITIVE]". Anything else falls back to BootScreen.
+const rawConvexUrl = import.meta.env.VITE_CONVEX_URL?.trim();
+const convexUrl = rawConvexUrl && /^https?:\/\//.test(rawConvexUrl) ? rawConvexUrl : undefined;
 const convex = convexUrl ? new ConvexReactClient(convexUrl) : null;
 
 export default function App() {
