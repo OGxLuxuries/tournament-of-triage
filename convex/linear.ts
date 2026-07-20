@@ -23,6 +23,11 @@ const LINEAR_GRAPHQL_URL = "https://api.linear.app/graphql";
  * GraphQL plumbing
  * ────────────────────────────────────────────────────────────────────────── */
 
+/** Personal API keys are sent bare; OAuth access tokens need `Bearer`. */
+function authHeader(token: string): string {
+  return token.startsWith("lin_api_") ? token : `Bearer ${token}`;
+}
+
 async function linearGql<T>(
   accessToken: string,
   query: string,
@@ -32,7 +37,7 @@ async function linearGql<T>(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: authHeader(accessToken),
     },
     body: JSON.stringify({ query, variables }),
   });
@@ -108,6 +113,84 @@ export const attachLinear = internalMutation({
       },
     });
     return room.code;
+  },
+});
+
+/** Like attachLinear, but gated on the host's session (API-key flow). */
+export const attachLinearAsHost = internalMutation({
+  args: {
+    roomId: v.id("rooms"),
+    sessionId: v.string(),
+    accessToken: v.string(),
+    userName: v.optional(v.string()),
+    workspaceName: v.optional(v.string()),
+    team: v.optional(v.object({ id: v.string(), name: v.string() })),
+  },
+  handler: async (
+    ctx,
+    { roomId, sessionId, accessToken, userName, workspaceName, team },
+  ): Promise<void> => {
+    await requireHost(ctx, roomId, sessionId);
+    await ctx.db.patch(roomId, {
+      linear: {
+        accessToken,
+        userName,
+        workspaceName,
+        teamId: team?.id,
+        teamName: team?.name,
+      },
+    });
+  },
+});
+
+/**
+ * Connect with a Linear personal API key instead of OAuth — for hosts whose
+ * workspace role can't create OAuth applications. The key is validated
+ * against Linear before it is stored, and it never leaves the server after
+ * this call: public queries only ever report `connected: true`.
+ */
+export const connectApiKey = action({
+  args: { roomId: v.id("rooms"), sessionId: v.string(), apiKey: v.string() },
+  handler: async (
+    ctx,
+    { roomId, sessionId, apiKey },
+  ): Promise<{ workspace?: string; user?: string; teamCount: number }> => {
+    const key = apiKey.trim();
+    if (!key) throw new ConvexError("PASTE A LINEAR API KEY FIRST");
+
+    let data: {
+      viewer: { name: string };
+      organization: { name: string };
+      teams: { nodes: LinearTeam[] };
+    };
+    try {
+      data = await linearGql(
+        key,
+        `query KeyCheck {
+          viewer { name }
+          organization { name }
+          teams(first: 50) { nodes { id key name } }
+        }`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new ConvexError(`LINEAR REJECTED THE KEY: ${message.slice(0, 100)}`);
+    }
+
+    const teams = data.teams.nodes;
+    await ctx.runMutation(internal.linear.attachLinearAsHost, {
+      roomId,
+      sessionId,
+      accessToken: key,
+      userName: data.viewer.name,
+      workspaceName: data.organization.name,
+      team: teams.length === 1 ? { id: teams[0].id, name: teams[0].name } : undefined,
+    });
+    return {
+      workspace: data.organization.name,
+      user: data.viewer.name,
+      teamCount: teams.length,
+    };
   },
 });
 

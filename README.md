@@ -58,7 +58,17 @@ browser/incognito tab, join with the room code and the handle `ada` or `grace`
 (matching [public/sample-skills.csv](public/sample-skills.csv)) — upload that CSV in
 HOST CONSOLE → SKILLS to see the Smart Agent fire on a 3-vote.
 
-## Linear OAuth setup (host features)
+## Linear setup (host features)
+
+Two ways to link Linear — both unlock the same features (backlog import,
+estimate write-back, consensus-board comments):
+
+**Option 1 — personal API key (no admin rights needed).** Any workspace member
+can mint one: Linear → Settings → **Security & access → API keys**. The host
+pastes it into **HOST CONSOLE → LINEAR** in the cabinet; it's validated against
+Linear and stored server-side only. Zero deployment config required.
+
+**Option 2 — OAuth app (workspace admins).**
 
 1. Linear → Settings → API → **OAuth applications** → create one.
 2. Callback URL: `https://<your-deployment>.convex.site/linear/callback`
@@ -71,8 +81,8 @@ npx convex env set LINEAR_CLIENT_SECRET <client secret>
 npx convex env set APP_URL              http://localhost:5173   # or your Vercel URL
 ```
 
-The host then presses **CONNECT LINEAR** in the cabinet. Tokens live only in Convex
-tables/env — they are never sent to browsers or committed.
+The host then presses **CONNECT WITH OAUTH** in the cabinet. Either way, tokens
+live only in Convex tables/env — they are never sent to browsers or committed.
 
 ## Deploy free on Vercel
 

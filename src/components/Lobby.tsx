@@ -138,11 +138,17 @@ export function Lobby({ room, players, tickets, me, now, sessionId }: LobbyProps
                 {room.linear.teamName ? ` · ${room.linear.teamName.toUpperCase()}` : " · PICK A TEAM IN THE HOST CONSOLE"}
               </p>
             ) : (
-              <ArcadeButton tone="cyan" disabled={busy} onClick={connectLinear}>
-                <span className="flex items-center justify-center gap-2">
-                  <Link2 size={14} aria-hidden /> CONNECT LINEAR (OAUTH)
-                </span>
-              </ArcadeButton>
+              <>
+                <ArcadeButton tone="cyan" disabled={busy} onClick={connectLinear}>
+                  <span className="flex items-center justify-center gap-2">
+                    <Link2 size={14} aria-hidden /> CONNECT LINEAR (OAUTH)
+                  </span>
+                </ArcadeButton>
+                <p className="text-[11px] leading-relaxed text-slate-500">
+                  No OAuth app? Paste a personal API key in{" "}
+                  <span className="text-neon-magenta">HOST CONSOLE → LINEAR</span> instead.
+                </p>
+              </>
             )}
 
             <ArcadeButton tone="yellow" disabled={busy} onClick={handleLoadDemo}>

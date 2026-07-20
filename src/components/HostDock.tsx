@@ -2,6 +2,7 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import {
   Download,
   FileSpreadsheet,
+  KeyRound,
   Link2,
   ListOrdered,
   Play,
@@ -421,12 +422,14 @@ function SkillsTab({
 function LinearTab({ room, sessionId }: { room: RoomState; sessionId: string }) {
   const toast = useToast();
   const getAuthUrl = useAction(api.linear.authUrl);
+  const connectWithKey = useAction(api.linear.connectApiKey);
   const fetchTeams = useAction(api.linear.teams);
   const importBacklog = useAction(api.linear.importBacklog);
   const setTeam = useMutation(api.linear.setTeam);
   const disconnect = useMutation(api.linear.disconnect);
 
   const [teams, setTeams] = useState<Array<{ id: string; key: string; name: string }> | null>(null);
+  const [apiKey, setApiKey] = useState("");
   const [busy, setBusy] = useState(false);
 
   const connect = async () => {
@@ -463,17 +466,57 @@ function LinearTab({ room, sessionId }: { room: RoomState; sessionId: string }) 
     }
   };
 
+  const submitKey = async () => {
+    setBusy(true);
+    try {
+      const result = await connectWithKey({ roomId: room._id, sessionId, apiKey });
+      setApiKey("");
+      toast.push(
+        "success",
+        `LINEAR LINKED · ${(result.workspace ?? "WORKSPACE").toUpperCase()} AS ${(result.user ?? "?").toUpperCase()}`,
+      );
+    } catch (error) {
+      toast.error(error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (!room.linear.connected) {
     return (
       <div className="flex flex-col gap-3">
         <p className="text-xs leading-relaxed text-slate-400">
-          OAuth into Linear to pull the backlog and push estimates + the consensus board back to
-          each ticket. Requires <span className="text-neon-cyan">LINEAR_CLIENT_ID</span> /{" "}
-          <span className="text-neon-cyan">SECRET</span> on the Convex deployment (see README).
+          Link Linear to pull the backlog and push estimates + the consensus board back to each
+          ticket. Two ways in:
         </p>
         <ArcadeButton tone="cyan" big disabled={busy} onClick={connect}>
           <span className="flex items-center justify-center gap-2">
-            <Link2 size={14} aria-hidden /> CONNECT LINEAR
+            <Link2 size={14} aria-hidden /> CONNECT WITH OAUTH
+          </span>
+        </ArcadeButton>
+        <p className="text-[11px] leading-relaxed text-slate-500">
+          OAuth needs a workspace admin to create the app +{" "}
+          <span className="text-neon-cyan">LINEAR_CLIENT_ID/SECRET</span> on Convex (README).
+        </p>
+        <div className="flex items-center gap-2 font-arcade text-[8px] text-slate-500">
+          <span className="h-px flex-1 bg-abyss-500" /> OR <span className="h-px flex-1 bg-abyss-500" />
+        </div>
+        <p className="text-[11px] leading-relaxed text-slate-400">
+          No admin rights? Any member can mint a personal key: Linear →{" "}
+          <span className="text-neon-cyan">Settings → Security &amp; access → API keys</span>. It's
+          validated, stored server-side only, and never shown again.
+        </p>
+        <input
+          type="password"
+          value={apiKey}
+          onChange={(event) => setApiKey(event.target.value)}
+          placeholder="lin_api_…"
+          autoComplete="off"
+          className="w-full border-2 border-abyss-500 bg-abyss-950/80 px-3 py-2 font-mono text-xs text-slate-200 placeholder:text-slate-600 focus:border-neon-green focus:outline-none"
+        />
+        <ArcadeButton tone="green" disabled={busy || !apiKey.trim()} onClick={submitKey}>
+          <span className="flex items-center justify-center gap-2">
+            <KeyRound size={12} aria-hidden /> CONNECT WITH API KEY
           </span>
         </ArcadeButton>
       </div>
