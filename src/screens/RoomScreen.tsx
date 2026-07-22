@@ -3,6 +3,7 @@ import { Check, Copy, Crown, Users, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
+import { ControllerDeck } from "../components/ControllerDeck";
 import { GameOverPanel } from "../components/GameOverPanel";
 import { HostDock } from "../components/HostDock";
 import { Lobby } from "../components/Lobby";
@@ -208,6 +209,11 @@ export function RoomScreen() {
           <GameOverPanel room={room} tickets={tickets ?? []} me={me} sessionId={sessionId} />
         )}
       </main>
+
+        {/* ── The cabinet deck ─────────────────────────────────────────── */}
+        {inBattle && (
+          <ControllerDeck room={room} votes={votes} me={me} sessionId={sessionId} />
+        )}
 
       </div>
 

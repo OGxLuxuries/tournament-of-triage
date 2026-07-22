@@ -13,11 +13,10 @@ import {
   type TicketRow,
   type VotesState,
 } from "../lib/types";
-import { ControllerDeck } from "./ControllerDeck";
 import { CountdownClock } from "./CountdownClock";
 import { PixelAvatar } from "./PixelAvatar";
 import { SliderMeter } from "./SliderMeter";
-import { ArcadeButton, Panel } from "./ui";
+import { ArcadeButton, Blink, Panel } from "./ui";
 
 interface VsArenaProps {
   room: RoomState;
@@ -74,17 +73,42 @@ export function VsArena({ room, players, ticket, votes, me, now, sessionId }: Vs
         )}
       </div>
 
-      {/* ── Arena: voting deck vs boss ─────────────────────────────────── */}
-      <div className="relative grid gap-4 md:grid-cols-[1.15fr_auto_1.25fr]">
-        {/* Voting side: the cabinet controls live where the roster was */}
-        <ControllerDeck
-          room={room}
-          votes={votes}
-          me={me}
-          sessionId={sessionId}
-          readyCount={readyIds.size}
-          squadCount={onlinePlayers.length}
-        />
+      {/* ── Arena: team votes vs boss ──────────────────────────────────── */}
+      <div className="relative grid gap-4 md:grid-cols-[1fr_auto_1.35fr]">
+        {/* Team side: everyone's votes — masked ? badges until the reveal */}
+        <Panel tone="cyan" title={`TEAM VOTES · ${readyIds.size}/${onlinePlayers.length} LOCKED`}>
+          <div className="flex flex-col gap-2">
+            {squad.map((player) => {
+              const vote = (votes?.votes ?? []).find((entry) => entry.playerId === player._id);
+              return (
+                <div
+                  key={player._id}
+                  className="flex items-center gap-2.5 border-2 border-abyss-600 bg-abyss-900/60 px-2.5 py-1.5"
+                >
+                  <PixelAvatar seed={player.avatarSeed} size={26} />
+                  <span className="min-w-0 flex-1 truncate text-xs text-slate-200">
+                    {player.name}
+                    {vote?.bid && (
+                      <span className="ml-1.5" title="Bid to take this work" aria-label="Bid to take this work">
+                        💰
+                      </span>
+                    )}
+                  </span>
+                  {phase === "voting" && !vote?.ready && vote?.complexity === undefined && (
+                    <span className="mr-1 font-arcade text-[7px] text-slate-500">
+                      <Blink>PICKING…</Blink>
+                    </span>
+                  )}
+                  <VoteBadge value={vote?.complexity} locked={vote?.ready ?? false} tone="magenta" />
+                  <VoteBadge value={vote?.uncertainty} locked={vote?.ready ?? false} tone="cyan" />
+                </div>
+              );
+            })}
+            {squad.length === 0 && (
+              <p className="py-3 text-center text-xs text-slate-500">Nobody online. Eerie.</p>
+            )}
+          </div>
+        </Panel>
 
         {/* VS bolt */}
         <div className="hidden items-center justify-center md:flex">
@@ -237,6 +261,41 @@ export function VsArena({ room, players, ticket, votes, me, now, sessionId }: Vs
 
 function shortTitle(title: string): string {
   return title.length > 34 ? `${title.slice(0, 32)}…` : title;
+}
+
+/** One axis of a player's vote: `?` while blind, the number once visible. */
+function VoteBadge({
+  value,
+  locked,
+  tone,
+}: {
+  value: number | undefined;
+  locked: boolean;
+  tone: "magenta" | "cyan";
+}) {
+  const palette =
+    tone === "magenta"
+      ? value !== undefined
+        ? "border-neon-magenta text-neon-magenta shadow-neon-magenta"
+        : locked
+          ? "border-neon-magenta/70 text-neon-magenta/80"
+          : "border-abyss-500 text-slate-600"
+      : value !== undefined
+        ? "border-neon-cyan text-neon-cyan shadow-neon-cyan"
+        : locked
+          ? "border-neon-cyan/70 text-neon-cyan/80"
+          : "border-abyss-500 text-slate-600";
+  return (
+    <span
+      className={cn(
+        "inline-flex h-7 w-7 shrink-0 items-center justify-center border-2 font-arcade text-xs",
+        palette,
+      )}
+      aria-label={value !== undefined ? `voted ${value}` : locked ? "locked in, hidden" : "not voted"}
+    >
+      {value ?? "?"}
+    </span>
+  );
 }
 
 /* ── Reveal panel: the vote board + consensus + Smart Agent ───────────── */

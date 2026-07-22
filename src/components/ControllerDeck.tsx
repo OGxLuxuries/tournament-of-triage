@@ -15,9 +15,6 @@ interface ControllerDeckProps {
   votes: VotesState | undefined;
   me: MeState;
   sessionId: string;
-  /** Squad readiness shown in the header (replaces the old roster panel). */
-  readyCount: number;
-  squadCount: number;
 }
 
 /**
@@ -25,14 +22,7 @@ interface ControllerDeckProps {
  * glows magenta, Uncertainty glows cyan; presses depress into the deck with
  * a mechanical clunk. Spamming >5 presses in 2s trips the TILT lockout.
  */
-export function ControllerDeck({
-  room,
-  votes,
-  me,
-  sessionId,
-  readyCount,
-  squadCount,
-}: ControllerDeckProps) {
+export function ControllerDeck({ room, votes, me, sessionId }: ControllerDeckProps) {
   const toast = useToast();
   const cast = useMutation(api.votes.cast);
   const toggleBid = useMutation(api.votes.toggleBid);
@@ -61,16 +51,14 @@ export function ControllerDeck({
   return (
     <section
       aria-label="Voting controller"
-      className="panel-chrome pixel-frame-cyan flex flex-col px-4 pb-5 pt-3"
+      className="panel-chrome pixel-frame-dim sticky bottom-2 z-20 px-4 pb-5 pt-3"
+      style={{ transform: "perspective(900px) rotateX(5deg)", transformOrigin: "bottom center" }}
     >
-      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 font-arcade text-[8px] text-slate-500">
+      <div className="mb-2 flex items-center justify-between font-arcade text-[8px] text-slate-500">
         <span>P1 · {me.name.toUpperCase()}</span>
-        <span className="border border-abyss-500 px-2 py-1 text-neon-cyan">
-          SQUAD {readyCount}/{squadCount} LOCKED
-        </span>
         <span
           className={cn(
-            "ml-auto border px-2 py-1",
+            "border px-2 py-1",
             tilted
               ? "animate-tilt-flash border-neon-red"
               : locked && votingOpen
@@ -84,7 +72,7 @@ export function ControllerDeck({
         </span>
       </div>
 
-      <div className="flex flex-1 flex-wrap content-center items-start justify-center gap-x-8 gap-y-5">
+      <div className="flex flex-wrap items-start justify-center gap-x-12 gap-y-4">
         <ButtonCluster
           label="COMPLEXITY"
           glow="#ff2ec4"
