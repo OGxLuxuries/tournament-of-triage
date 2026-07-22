@@ -88,11 +88,14 @@ export function AttractScreen() {
           <br />
           OF TRIAGE
         </h1>
-        <p className="mt-4 font-mono text-sm tracking-widest text-slate-300">
+        <p className="mt-4 font-mono text-sm tracking-widest text-slate-200 [text-shadow:0_2px_10px_rgba(8,0,15,0.95),0_0_4px_rgba(8,0,15,0.9)]">
           COOPERATIVE STORY POINTING · EST. 1986
         </p>
-        <p className="mt-6 font-arcade text-xs text-neon-yellow">
-          <Blink>▶ INSERT COIN TO CONTINUE ◀</Blink>
+        {/* Dark marquee plate: keeps the yellow text readable over the sun */}
+        <p className="mt-6">
+          <span className="inline-block border-2 border-neon-yellow/60 bg-abyss-950/90 px-5 py-2.5 font-arcade text-xs text-neon-yellow shadow-neon-yellow">
+            <Blink>▶ INSERT COIN TO CONTINUE ◀</Blink>
+          </span>
         </p>
       </header>
 
