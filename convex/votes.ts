@@ -17,7 +17,7 @@ export const forActive = query({
       revealed: false,
       votes: [] as MaskedVote[],
       averages: { complexity: null as number | null, uncertainty: null as number | null },
-      bidCount: 0,
+      bidCount: null as number | null,
     };
     const room = await ctx.db.get(roomId);
     if (!room || !room.activeTicketId) return empty;
@@ -50,7 +50,7 @@ export const forActive = query({
         ready: vote.complexity !== undefined && vote.uncertainty !== undefined,
         complexity: visible ? vote.complexity : undefined,
         uncertainty: visible ? vote.uncertainty : undefined,
-        bid: visible ? (vote.bid ?? false) : undefined,
+        bidAmount: visible ? vote.bidAmount : undefined,
         updatedAt: vote.updatedAt,
       };
     });
@@ -66,7 +66,10 @@ export const forActive = query({
           currentVotes.map((vote) => vote.uncertainty).filter((value): value is 1 | 2 | 3 => value !== undefined),
         ),
       },
-      bidCount: currentVotes.filter((vote) => vote.bid).length,
+      // Bids are sealed until the host reveals — not even the count leaks.
+      bidCount: revealed
+        ? currentVotes.filter((vote) => (vote.bidAmount ?? 0) > 0).length
+        : null,
     };
   },
 });
@@ -76,7 +79,7 @@ interface MaskedVote {
   ready: boolean;
   complexity?: number;
   uncertainty?: number;
-  bid?: boolean;
+  bidAmount?: number;
   updatedAt: number;
 }
 
@@ -135,19 +138,26 @@ export const cast = mutation({
 });
 
 /**
- * The gold button: raise (or withdraw) a bid to take the work. Allowed while
- * voting AND after the reveal — the discussion phase is exactly when people
- * volunteer.
+ * The gold button: wager coins to take the work (amount 0 withdraws). Bids
+ * stay sealed until the reveal; after it, raising is allowed — that's the
+ * bidding war. Coins are only DEDUCTED when the boss is synced and the top
+ * bid wins, so a losing bid costs nothing.
  */
-export const toggleBid = mutation({
-  args: { roomId: v.id("rooms"), sessionId: v.string() },
-  handler: async (ctx, { roomId, sessionId }) => {
+export const placeBid = mutation({
+  args: { roomId: v.id("rooms"), sessionId: v.string(), amount: v.number() },
+  handler: async (ctx, { roomId, sessionId, amount }) => {
     const room = await requireRoom(ctx, roomId);
     if ((room.status !== "voting" && room.status !== "revealed") || !room.activeTicketId) {
       throw new ConvexError("NO OPEN QUEST TO BID ON");
     }
     const player = await requirePlayer(ctx, roomId, sessionId);
+    const wager = Math.floor(amount);
+    if (!Number.isFinite(wager) || wager < 0) throw new ConvexError("BAD WAGER");
+    const purse = player.coins ?? 100;
+    if (wager > purse) throw new ConvexError(`PURSE TOO LIGHT — YOU HAVE ${purse} COINS`);
+
     const now = Date.now();
+    const bidPatch = { bid: undefined, bidAmount: wager > 0 ? wager : undefined };
 
     const existing = await ctx.db
       .query("votes")
@@ -157,24 +167,26 @@ export const toggleBid = mutation({
       .unique();
 
     if (!existing) {
-      await ctx.db.insert("votes", {
-        roomId,
-        ticketId: room.activeTicketId,
-        playerId: player._id,
-        round: room.roundCount,
-        bid: true,
-        updatedAt: now,
-      });
+      if (wager > 0) {
+        await ctx.db.insert("votes", {
+          roomId,
+          ticketId: room.activeTicketId,
+          playerId: player._id,
+          round: room.roundCount,
+          bidAmount: wager,
+          updatedAt: now,
+        });
+      }
     } else if (existing.round !== room.roundCount) {
       await ctx.db.patch(existing._id, {
         round: room.roundCount,
         complexity: undefined,
         uncertainty: undefined,
-        bid: true,
         updatedAt: now,
+        ...bidPatch,
       });
     } else {
-      await ctx.db.patch(existing._id, { bid: !existing.bid, updatedAt: now });
+      await ctx.db.patch(existing._id, { updatedAt: now, ...bidPatch });
     }
     await ctx.db.patch(player._id, { lastSeenAt: now });
   },

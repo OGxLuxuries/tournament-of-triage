@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import { internalMutation, mutation, query } from "./_generated/server";
 import {
   MAX_PLAYERS,
+  STARTING_COINS,
   getRoomByCode,
   hashSeed,
   randomCode,
@@ -74,6 +75,7 @@ export const create = mutation({
       name: host,
       isHost: true,
       avatarSeed: hashSeed(host + code),
+      coins: STARTING_COINS,
       joinedAt: now,
       lastSeenAt: now,
     });
@@ -115,6 +117,7 @@ export const join = mutation({
       name: cleanName,
       isHost: room.hostSessionId === sessionId,
       avatarSeed: hashSeed(cleanName + room.code + String(now % 977)),
+      coins: STARTING_COINS,
       joinedAt: now,
       lastSeenAt: now,
     });

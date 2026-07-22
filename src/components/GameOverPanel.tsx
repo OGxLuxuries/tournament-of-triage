@@ -47,6 +47,11 @@ export function GameOverPanel({ room, tickets, me, sessionId }: GameOverPanelPro
                   <Sparkles size={10} aria-hidden /> PERFECT
                 </span>
               )}
+              {ticket.wonBy && (
+                <span className="font-arcade text-[8px] text-neon-yellow">
+                  🏆 {ticket.wonBy} ({ticket.winningBid}🪙)
+                </span>
+              )}
               <span
                 className={
                   "font-arcade text-[8px] " +

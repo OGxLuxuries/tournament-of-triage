@@ -18,6 +18,9 @@ export const VICTORY_LAP_MS = 4_600;
 export const MAX_PLAYERS = 16;
 export const MAX_SKILL_ROWS = 200;
 
+/** Bidding purse granted once at join. Never refilled — wager wisely. */
+export const STARTING_COINS = 100;
+
 /* ──────────────────────────────────────────────────────────────────────────
  * Randomness helpers (Convex mutations may use Math.random / crypto)
  * ────────────────────────────────────────────────────────────────────────── */
@@ -327,7 +330,8 @@ export function buildConsensusComment(input: {
   finalPoints?: number;
   unanimous?: boolean;
   votes: Array<{ name: string; complexity: number; uncertainty: number }>;
-  bidders?: string[];
+  bidders?: Array<{ name: string; amount: number }>;
+  wonBy?: { name: string; amount: number };
   pairingSummary?: string;
   roomName: string;
 }): string {
@@ -356,7 +360,23 @@ export function buildConsensusComment(input: {
     lines.push("_No votes were cast — the boss surrendered out of boredom._", "");
   }
   if (input.bidders && input.bidders.length > 0) {
-    lines.push(`🙋 **Bids to take it:** ${input.bidders.join(", ")}`, "");
+    if (input.bidders.length > 1) {
+      lines.push(
+        `🪙 **Bidding war!** ${input.bidders
+          .map((bidder) => `${bidder.name} (${bidder.amount})`)
+          .join(" vs ")}`,
+      );
+    } else {
+      lines.push(
+        `🙋 **Bid to take it:** ${input.bidders[0].name} (${input.bidders[0].amount} coins)`,
+      );
+    }
+    if (input.wonBy) {
+      lines.push(
+        `🏆 **Quest claimed by ${input.wonBy.name}** — winning bid ${input.wonBy.amount} coins`,
+      );
+    }
+    lines.push("");
   }
   if (input.pairingSummary) {
     lines.push("---", "", input.pairingSummary, "");

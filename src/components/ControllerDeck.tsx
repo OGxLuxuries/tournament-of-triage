@@ -1,5 +1,5 @@
 import { useMutation } from "convex/react";
-import { type CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import { api } from "../../convex/_generated/api";
 import { audio } from "../lib/audio";
 import { cn } from "../lib/cn";
@@ -25,14 +25,18 @@ interface ControllerDeckProps {
 export function ControllerDeck({ room, votes, me, sessionId }: ControllerDeckProps) {
   const toast = useToast();
   const cast = useMutation(api.votes.cast);
-  const toggleBid = useMutation(api.votes.toggleBid);
+  const placeBid = useMutation(api.votes.placeBid);
   const { tilted, registerPress } = useTilt();
+  const [wager, setWager] = useState(10);
 
   const myVote = votes?.votes.find((vote) => vote.playerId === me.playerId);
   const votingOpen = room.status === "voting";
   const biddingOpen = votingOpen || room.status === "revealed";
   const locked = myVote?.ready ?? false;
-  const myBid = myVote?.bid ?? false;
+  const myBid = myVote?.bidAmount ?? 0;
+  const purse = me.coins;
+  const displayWager = Math.min(wager, Math.max(purse, 0));
+  const broke = purse < 5;
 
   const press = (axis: Axis, value: PointValue) => {
     if (!votingOpen || tilted) return;
@@ -41,11 +45,17 @@ export function ControllerDeck({ room, votes, me, sessionId }: ControllerDeckPro
     cast({ roomId: room._id, sessionId, axis, value }).catch((error) => toast.error(error));
   };
 
-  const pressBid = () => {
+  const adjustWager = (delta: number) => {
+    if (!biddingOpen || tilted || broke) return;
+    audio.click();
+    setWager((current) => Math.min(Math.max(current + delta, 5), Math.max(purse, 5)));
+  };
+
+  const submitBid = (amount: number) => {
     if (!biddingOpen || tilted) return;
     if (registerPress()) return;
     audio.coin();
-    toggleBid({ roomId: room._id, sessionId }).catch((error) => toast.error(error));
+    placeBid({ roomId: room._id, sessionId, amount }).catch((error) => toast.error(error));
   };
 
   return (
@@ -90,34 +100,76 @@ export function ControllerDeck({ room, votes, me, sessionId }: ControllerDeckPro
           onPress={(value) => press("uncertainty", value)}
         />
 
-        {/* The gold button: bid to take this work */}
-        <div className="flex flex-col items-center gap-3">
+        {/* The gold corner: wager coins from your purse to claim the quest */}
+        <div className="flex flex-col items-center gap-2">
           <span className="font-arcade text-[10px] tracking-[0.25em] text-glow-yellow">
-            CLAIM IT
+            CLAIM IT · 🪙 {purse}
           </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => adjustWager(-5)}
+              disabled={!biddingOpen || tilted || broke}
+              aria-label="Decrease wager"
+              className="border-2 border-abyss-500 px-2.5 py-1 font-arcade text-sm text-slate-300 hover:border-neon-yellow hover:text-neon-yellow disabled:opacity-40"
+            >
+              −
+            </button>
+            <span
+              className="w-16 border-2 border-neon-yellow/60 bg-abyss-950 py-1.5 text-center font-arcade text-sm text-neon-yellow"
+              aria-label={`Wager ${displayWager} coins`}
+            >
+              {broke ? "—" : displayWager}
+            </span>
+            <button
+              type="button"
+              onClick={() => adjustWager(5)}
+              disabled={!biddingOpen || tilted || broke}
+              aria-label="Increase wager"
+              className="border-2 border-abyss-500 px-2.5 py-1 font-arcade text-sm text-slate-300 hover:border-neon-yellow hover:text-neon-yellow disabled:opacity-40"
+            >
+              +
+            </button>
+          </div>
           <button
             type="button"
-            className={cn("cab-btn h-16 w-28 sm:h-20 sm:w-32", myBid && "cab-selected")}
+            className={cn("cab-btn h-16 w-28 sm:h-20 sm:w-32", myBid > 0 && "cab-selected")}
             style={{ "--cab-glow": "#ffd700" } as CSSProperties}
-            disabled={!biddingOpen || tilted}
-            onClick={pressBid}
-            aria-label="Bid to take this work"
-            aria-pressed={myBid}
+            disabled={!biddingOpen || tilted || broke}
+            onClick={() => submitBid(displayWager)}
+            aria-label={`Bid ${displayWager} coins to take this work`}
+            aria-pressed={myBid > 0}
           >
             <span className="cab-btn-edge" aria-hidden />
             <span
               className="cab-btn-face h-full w-full flex-col gap-1 font-arcade"
               style={{
-                color: myBid ? "#ffffff" : "#ffd700",
+                color: myBid > 0 ? "#ffffff" : "#ffd700",
                 textShadow: "0 0 10px #ffd700",
               }}
             >
-              <span className="text-base sm:text-lg">💰 BID</span>
+              <span className="text-base sm:text-lg">💰 {broke ? "BROKE" : displayWager}</span>
               <span className="text-[7px] tracking-widest">
-                {myBid ? "BID PLACED!" : "TAKE THE QUEST"}
+                {broke
+                  ? "PURSE EMPTY!"
+                  : myBid === 0
+                    ? "PLACE BID"
+                    : myBid === displayWager
+                      ? "BID PLACED!"
+                      : `RAISE (NOW ${myBid})`}
               </span>
             </span>
           </button>
+          {myBid > 0 && (
+            <button
+              type="button"
+              onClick={() => submitBid(0)}
+              disabled={!biddingOpen || tilted}
+              className="font-arcade text-[8px] text-slate-400 underline hover:text-neon-red"
+            >
+              WITHDRAW BID
+            </button>
+          )}
         </div>
       </div>
     </section>

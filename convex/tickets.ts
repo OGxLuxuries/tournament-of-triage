@@ -130,7 +130,8 @@ export interface DefeatPayload {
   unanimous?: boolean;
   pairingSummary?: string;
   votes: Array<{ name: string; complexity: number; uncertainty: number }>;
-  bidders: string[];
+  bidders: Array<{ name: string; amount: number }>;
+  wonBy?: { name: string; amount: number };
   linear: { accessToken: string; issueId: string } | null;
 }
 
@@ -184,10 +185,27 @@ export const finalizeActive = internalMutation({
         uncertainty: vote.uncertainty!,
       });
     }
-    const bidders: string[] = [];
-    for (const vote of roundVotes.filter((vote) => vote.bid)) {
+    // Settle the bidding war: highest wager wins (tie → earliest bid), and
+    // ONLY the winner pays — coins leave their purse permanently.
+    const bidVotes = roundVotes
+      .filter((vote) => (vote.bidAmount ?? 0) > 0)
+      .sort((a, b) => (b.bidAmount ?? 0) - (a.bidAmount ?? 0) || a.updatedAt - b.updatedAt);
+    const bidders: DefeatPayload["bidders"] = [];
+    let wonBy: DefeatPayload["wonBy"];
+    for (const [index, vote] of bidVotes.entries()) {
       const player = await ctx.db.get(vote.playerId);
-      if (player) bidders.push(player.name);
+      if (!player) continue;
+      const amount = vote.bidAmount!;
+      bidders.push({ name: player.name, amount });
+      if (index === 0) {
+        wonBy = { name: player.name, amount };
+        await ctx.db.patch(player._id, {
+          coins: Math.max(0, (player.coins ?? 100) - amount),
+        });
+      }
+    }
+    if (wonBy) {
+      await ctx.db.patch(ticket._id, { wonBy: wonBy.name, winningBid: wonBy.amount });
     }
 
     const fresh: Doc<"tickets"> = (await ctx.db.get(ticket._id))!;
@@ -203,6 +221,7 @@ export const finalizeActive = internalMutation({
       pairingSummary: fresh.pairingSummary,
       votes: namedVotes,
       bidders,
+      wonBy,
       linear:
         room.linear && fresh.linearIssueId
           ? { accessToken: room.linear.accessToken, issueId: fresh.linearIssueId }

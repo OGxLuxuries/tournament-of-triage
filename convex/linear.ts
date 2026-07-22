@@ -333,6 +333,7 @@ export const defeatTicket = action({
         unanimous: payload.unanimous,
         votes: payload.votes,
         bidders: payload.bidders,
+        wonBy: payload.wonBy,
         pairingSummary: payload.pairingSummary,
         roomName: payload.roomName,
       });

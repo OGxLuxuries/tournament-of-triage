@@ -47,6 +47,8 @@ export default defineSchema({
     name: v.string(),
     isHost: v.boolean(),
     avatarSeed: v.number(),
+    /** Bidding purse: granted once at join, never refilled mid-game. */
+    coins: v.optional(v.number()),
     joinedAt: v.number(),
     lastSeenAt: v.number(),
   })
@@ -73,6 +75,9 @@ export default defineSchema({
     finalPoints: v.optional(v.number()),
     unanimous: v.optional(v.boolean()),
     pairingSummary: v.optional(v.string()),
+    /** Bidding-war outcome, settled at SYNC & ADVANCE. */
+    wonBy: v.optional(v.string()),
+    winningBid: v.optional(v.number()),
     syncState: v.optional(
       v.union(v.literal("pending"), v.literal("synced"), v.literal("error"), v.literal("skipped")),
     ),
@@ -92,8 +97,10 @@ export default defineSchema({
     round: v.number(),
     complexity: v.optional(pointValue),
     uncertainty: v.optional(pointValue),
-    /** Player raised their hand to take the work. */
+    /** Legacy boolean bid — superseded by bidAmount, kept for old rows. */
     bid: v.optional(v.boolean()),
+    /** Coin wager to take the work. Secret until reveal. */
+    bidAmount: v.optional(v.number()),
     updatedAt: v.number(),
   })
     .index("by_ticket", ["ticketId"])

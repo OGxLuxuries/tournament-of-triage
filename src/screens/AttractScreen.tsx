@@ -216,7 +216,7 @@ export function AttractScreen() {
                 <>The <b className="text-neon-cyan">Host</b> powers on a cabinet, links Linear with a personal API key, and scans triage issues — by one team, several, or all — then hand-picks which ones fight (8 of 12 is fine).</>,
                 <>Players join with the <b className="text-neon-cyan">room code</b>. A coin drops. It's very satisfying.</>,
                 <>Everyone votes 1–3 on both axes using the cabinet buttons. Individual picks stay hidden — only the <b className="text-neon-cyan">mechanical sliders</b> move, showing the live crowd average.</>,
-                <>Want the work? Smash the gold <b className="text-neon-yellow">💰 BID</b> button. The BIDS counter ticks up; names show at the reveal.</>,
+                <>Want the work? Wager coins on the gold <b className="text-neon-yellow">💰 BID</b> button — everyone starts the game with <b className="text-neon-yellow">100 coins</b> and they never refill between bosses. Bids stay sealed until the reveal; rival bids spark a <b className="text-neon-yellow">BIDDING WAR</b> where anyone can keep raising. The top bid wins the quest and pays their coins at sync — losers keep theirs.</>,
                 <>The Host reveals (or the round timer does it automatically). Unanimous vote? <b className="text-neon-green">PERFECT!</b> — the cabinet announces it.</>,
                 <><b className="text-neon-green">SYNC &amp; ADVANCE</b> fires the laser volley, writes the estimate + a consensus-board comment (votes, bids, pairing intel) to Linear, and slides in the next issue.</>,
               ].map((step, index) => (

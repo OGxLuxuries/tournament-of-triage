@@ -14,9 +14,10 @@ import {
   type VotesState,
 } from "../lib/types";
 import { CountdownClock } from "./CountdownClock";
+import { DanceFloor } from "./DanceFloor";
 import { PixelAvatar } from "./PixelAvatar";
 import { SliderMeter } from "./SliderMeter";
-import { ArcadeButton, Blink, Panel } from "./ui";
+import { ArcadeButton, Panel } from "./ui";
 
 interface VsArenaProps {
   room: RoomState;
@@ -75,39 +76,13 @@ export function VsArena({ room, players, ticket, votes, me, now, sessionId }: Vs
 
       {/* ── Arena: team votes vs boss ──────────────────────────────────── */}
       <div className="relative grid gap-4 md:grid-cols-[1fr_auto_1.35fr]">
-        {/* Team side: everyone's votes — masked ? badges until the reveal */}
-        <Panel tone="cyan" title={`TEAM VOTES · ${readyIds.size}/${onlinePlayers.length} LOCKED`}>
-          <div className="flex flex-col gap-2">
-            {squad.map((player) => {
-              const vote = (votes?.votes ?? []).find((entry) => entry.playerId === player._id);
-              return (
-                <div
-                  key={player._id}
-                  className="flex items-center gap-2.5 border-2 border-abyss-600 bg-abyss-900/60 px-2.5 py-1.5"
-                >
-                  <PixelAvatar seed={player.avatarSeed} size={26} />
-                  <span className="min-w-0 flex-1 truncate text-xs text-slate-200">
-                    {player.name}
-                    {vote?.bid && (
-                      <span className="ml-1.5" title="Bid to take this work" aria-label="Bid to take this work">
-                        💰
-                      </span>
-                    )}
-                  </span>
-                  {phase === "voting" && !vote?.ready && vote?.complexity === undefined && (
-                    <span className="mr-1 font-arcade text-[7px] text-slate-500">
-                      <Blink>PICKING…</Blink>
-                    </span>
-                  )}
-                  <VoteBadge value={vote?.complexity} locked={vote?.ready ?? false} tone="magenta" />
-                  <VoteBadge value={vote?.uncertainty} locked={vote?.ready ?? false} tone="cyan" />
-                </div>
-              );
-            })}
-            {squad.length === 0 && (
-              <p className="py-3 text-center text-xs text-slate-500">Nobody online. Eerie.</p>
-            )}
-          </div>
+        {/* Team side: the dance floor — presence and vibes only, no votes */}
+        <Panel
+          tone="cyan"
+          title={`TEAM · ${readyIds.size}/${onlinePlayers.length} LOCKED`}
+          className="flex flex-col [&>div:last-child]:flex-1 [&>div:last-child]:p-1"
+        >
+          <DanceFloor players={squad} lockedIds={readyIds} />
         </Panel>
 
         {/* VS bolt */}
@@ -181,7 +156,11 @@ export function VsArena({ room, players, ticket, votes, me, now, sessionId }: Vs
               </div>
               <div className="border border-abyss-600 bg-abyss-900/70 p-2">
                 <p className="text-slate-500">BIDS</p>
-                <p className="mt-1 text-neon-yellow">💰 {votes?.bidCount ?? 0}</p>
+                <p className="mt-1 text-neon-yellow">
+                  {votes?.bidCount == null
+                    ? "💰 ??"
+                    : `💰 ${votes.bidCount}${votes.bidCount > 1 ? " ⚔ WAR!" : ""}`}
+                </p>
               </div>
             </div>
           </div>
@@ -263,40 +242,6 @@ function shortTitle(title: string): string {
   return title.length > 34 ? `${title.slice(0, 32)}…` : title;
 }
 
-/** One axis of a player's vote: `?` while blind, the number once visible. */
-function VoteBadge({
-  value,
-  locked,
-  tone,
-}: {
-  value: number | undefined;
-  locked: boolean;
-  tone: "magenta" | "cyan";
-}) {
-  const palette =
-    tone === "magenta"
-      ? value !== undefined
-        ? "border-neon-magenta text-neon-magenta shadow-neon-magenta"
-        : locked
-          ? "border-neon-magenta/70 text-neon-magenta/80"
-          : "border-abyss-500 text-slate-600"
-      : value !== undefined
-        ? "border-neon-cyan text-neon-cyan shadow-neon-cyan"
-        : locked
-          ? "border-neon-cyan/70 text-neon-cyan/80"
-          : "border-abyss-500 text-slate-600";
-  return (
-    <span
-      className={cn(
-        "inline-flex h-7 w-7 shrink-0 items-center justify-center border-2 font-arcade text-xs",
-        palette,
-      )}
-      aria-label={value !== undefined ? `voted ${value}` : locked ? "locked in, hidden" : "not voted"}
-    >
-      {value ?? "?"}
-    </span>
-  );
-}
 
 /* ── Reveal panel: the vote board + consensus + Smart Agent ───────────── */
 
@@ -327,6 +272,9 @@ function RevealPanel({
   const startRound = useMutation(api.rooms.startRound);
   const playerById = new Map(players.map((player) => [player._id as string, player]));
   const board = (votes?.votes ?? []).filter((vote) => vote.ready);
+  const bidders = (votes?.votes ?? [])
+    .filter((vote) => (vote.bidAmount ?? 0) > 0)
+    .sort((a, b) => (b.bidAmount ?? 0) - (a.bidAmount ?? 0) || a.updatedAt - b.updatedAt);
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr] animate-slide-up">
@@ -347,11 +295,6 @@ function RevealPanel({
                 <PixelAvatar seed={player?.avatarSeed ?? 7} size={26} />
                 <span className="min-w-0 flex-1 truncate text-xs text-slate-200">
                   {player?.name ?? "???"}
-                  {vote.bid && (
-                    <span className="ml-1.5" title="Bid to take this work" aria-label="Bid to take this work">
-                      💰
-                    </span>
-                  )}
                 </span>
                 <span className="border-2 border-neon-magenta px-2.5 py-1 font-arcade text-sm text-neon-magenta shadow-neon-magenta">
                   {vote.complexity}
@@ -368,6 +311,42 @@ function RevealPanel({
             </p>
           )}
         </div>
+
+        {/* Bids unseal here — and with rivals, the war is on until sync */}
+        {bidders.length > 0 && (
+          <div className="mt-3 border-2 border-neon-yellow/60 bg-abyss-950/60 p-2.5">
+            <p className="mb-2 font-arcade text-[9px] text-neon-yellow">
+              {bidders.length > 1 ? "🪙 BIDDING WAR!" : "🪙 BID ON THE QUEST"}
+            </p>
+            <div className="flex flex-col gap-1">
+              {bidders.map((bid, index) => {
+                const player = playerById.get(bid.playerId);
+                return (
+                  <div
+                    key={bid.playerId}
+                    className={cn(
+                      "flex items-center gap-2 px-2 py-1 text-xs",
+                      index === 0
+                        ? "border border-neon-yellow/70 bg-abyss-900 text-neon-yellow"
+                        : "text-slate-300",
+                    )}
+                  >
+                    <span aria-hidden>{index === 0 ? "🏆" : "▪"}</span>
+                    <span className="min-w-0 flex-1 truncate">{player?.name ?? "???"}</span>
+                    <span className="font-arcade text-[10px]">{bid.bidAmount} 🪙</span>
+                  </div>
+                );
+              })}
+            </div>
+            {phase === "revealed" && (
+              <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
+                {bidders.length > 1
+                  ? "War's on — raise your wager on the deck before the host syncs. Top bid takes the quest and pays their coins."
+                  : "Top bid takes the quest and pays at sync. Anyone can still outbid on the deck."}
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="mt-4 flex flex-wrap items-center justify-center gap-3 border-t-2 border-abyss-600 pt-4">
           <div className="text-center">

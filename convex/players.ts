@@ -17,6 +17,7 @@ export const byRoom = query({
         name: player.name,
         isHost: player.isHost,
         avatarSeed: player.avatarSeed,
+        coins: player.coins ?? 100,
         joinedAt: player.joinedAt,
         lastSeenAt: player.lastSeenAt,
       }));
@@ -40,6 +41,7 @@ export const me = query({
       name: player.name,
       isHost: room.hostSessionId === sessionId,
       avatarSeed: player.avatarSeed,
+      coins: player.coins ?? 100,
     };
   },
 });
