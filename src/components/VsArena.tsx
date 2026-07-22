@@ -13,10 +13,11 @@ import {
   type TicketRow,
   type VotesState,
 } from "../lib/types";
+import { ControllerDeck } from "./ControllerDeck";
 import { CountdownClock } from "./CountdownClock";
 import { PixelAvatar } from "./PixelAvatar";
 import { SliderMeter } from "./SliderMeter";
-import { ArcadeButton, Blink, Panel } from "./ui";
+import { ArcadeButton, Panel } from "./ui";
 
 interface VsArenaProps {
   room: RoomState;
@@ -73,32 +74,17 @@ export function VsArena({ room, players, ticket, votes, me, now, sessionId }: Vs
         )}
       </div>
 
-      {/* ── Arena: team vs boss ────────────────────────────────────────── */}
-      <div className="relative grid gap-4 md:grid-cols-[1fr_auto_1.35fr]">
-        {/* Team side */}
-        <Panel tone="cyan" title={`CHALLENGERS · ${readyIds.size}/${onlinePlayers.length} LOCKED`}>
-          <div className="flex flex-wrap content-start gap-3">
-            {squad.map((player, index) => (
-              <div key={player._id} className="flex w-16 flex-col items-center gap-1 text-center">
-                <div className="animate-float" style={{ animationDelay: `${index * 0.25}s` }}>
-                  <PixelAvatar seed={player.avatarSeed} size={40} />
-                </div>
-                <span className="w-full truncate text-[10px] text-slate-300">{player.name}</span>
-                {phase === "voting" ? (
-                  readyIds.has(player._id) ? (
-                    <span className="font-arcade text-[7px] text-neon-green">READY!</span>
-                  ) : (
-                    <span className="font-arcade text-[7px] text-slate-500">
-                      <Blink>PICKING…</Blink>
-                    </span>
-                  )
-                ) : (
-                  <span className="font-arcade text-[7px] text-neon-cyan">FIRE!</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </Panel>
+      {/* ── Arena: voting deck vs boss ─────────────────────────────────── */}
+      <div className="relative grid gap-4 md:grid-cols-[1.15fr_auto_1.25fr]">
+        {/* Voting side: the cabinet controls live where the roster was */}
+        <ControllerDeck
+          room={room}
+          votes={votes}
+          me={me}
+          sessionId={sessionId}
+          readyCount={readyIds.size}
+          squadCount={onlinePlayers.length}
+        />
 
         {/* VS bolt */}
         <div className="hidden items-center justify-center md:flex">
@@ -135,6 +121,12 @@ export function VsArena({ room, players, ticket, votes, me, now, sessionId }: Vs
             <h3 className="font-arcade text-xs leading-relaxed text-neon-magenta">
               {ticket.title.toUpperCase()}
             </h3>
+            <div>
+              <p className="mb-1 font-arcade text-[8px] text-slate-500">ISSUE DESC</p>
+              <div className="max-h-44 overflow-y-auto whitespace-pre-wrap border-2 border-abyss-600 bg-abyss-950/70 p-3 text-xs leading-relaxed text-slate-300">
+                {ticket.description || "No intel available. It hides its power level."}
+              </div>
+            </div>
             {/* Live crowd meters: averages move as votes land, picks stay blind */}
             <div className="flex flex-col gap-2 border-2 border-abyss-600 bg-abyss-950/60 p-3">
               <SliderMeter
@@ -166,12 +158,6 @@ export function VsArena({ room, players, ticket, votes, me, now, sessionId }: Vs
               <div className="border border-abyss-600 bg-abyss-900/70 p-2">
                 <p className="text-slate-500">BIDS</p>
                 <p className="mt-1 text-neon-yellow">💰 {votes?.bidCount ?? 0}</p>
-              </div>
-            </div>
-            <div>
-              <p className="mb-1 font-arcade text-[8px] text-slate-500">STATS / ABILITIES</p>
-              <div className="max-h-44 overflow-y-auto whitespace-pre-wrap border-2 border-abyss-600 bg-abyss-950/70 p-3 text-xs leading-relaxed text-slate-300">
-                {ticket.description || "No intel available. It hides its power level."}
               </div>
             </div>
           </div>
