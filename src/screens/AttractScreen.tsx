@@ -17,6 +17,7 @@ import {
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
+import { MusicPicker } from "../components/MusicPicker";
 import { ArcadeButton, Blink, Panel } from "../components/ui";
 import { useAudioControls } from "../lib/audio-context";
 import { getSessionId } from "../lib/session";
@@ -70,13 +71,16 @@ export function AttractScreen() {
 
   return (
     <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col items-center px-4 py-10">
-      <button
-        onClick={toggleMuted}
-        aria-label={muted ? "Unmute audio" : "Mute audio"}
-        className="absolute right-4 top-4 border-2 border-abyss-500 bg-abyss-900/80 p-2 text-slate-300 hover:border-neon-cyan hover:text-neon-cyan"
-      >
-        {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-      </button>
+      <div className="absolute right-4 top-4 flex gap-2">
+        <MusicPicker />
+        <button
+          onClick={toggleMuted}
+          aria-label={muted ? "Unmute audio" : "Mute audio"}
+          className="border-2 border-abyss-500 bg-abyss-900/80 p-2 text-slate-300 hover:border-neon-cyan hover:text-neon-cyan"
+        >
+          {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+        </button>
+      </div>
 
       {/* ── Marquee ────────────────────────────────────────────────────── */}
       <header className="mb-10 mt-6 text-center">

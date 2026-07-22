@@ -7,6 +7,7 @@ import { ControllerDeck } from "../components/ControllerDeck";
 import { GameOverPanel } from "../components/GameOverPanel";
 import { HostDock } from "../components/HostDock";
 import { Lobby } from "../components/Lobby";
+import { MusicPicker } from "../components/MusicPicker";
 import { VsArena } from "../components/VsArena";
 import { ArcadeButton, Blink, Panel } from "../components/ui";
 import { audio } from "../lib/audio";
@@ -167,6 +168,7 @@ export function RoomScreen() {
             {room.code}
             {copied ? <Check size={12} aria-hidden /> : <Copy size={12} aria-hidden />}
           </button>
+          <MusicPicker compact />
           <button
             onClick={toggleMuted}
             aria-label={muted ? "Unmute audio" : "Mute audio"}

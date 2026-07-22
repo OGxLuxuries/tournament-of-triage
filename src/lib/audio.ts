@@ -10,17 +10,132 @@
  */
 
 const MUTE_KEY = "bitpoint.muted";
+const MUSIC_MODE_KEY = "bitpoint.musicMode";
 
 const midiHz = (midi: number): number => 440 * Math.pow(2, (midi - 69) / 12);
 
-/** Am — F — C — G, voiced mid-keyboard. The eternal synthwave progression. */
-const PROGRESSION: number[][] = [
-  [57, 60, 64], // A minor
-  [53, 57, 60], // F major
-  [60, 64, 67], // C major
-  [55, 59, 62], // G major
+/** In MIX mode each track gets this long before the deck fades to the next. */
+const MIX_TRACK_SECONDS = 90;
+const FADE_SECONDS = 1.2;
+
+interface TrackDef {
+  name: string;
+  tempo: number;
+  /** Four bars of triads (midi note numbers). */
+  progression: number[][];
+  padWave: OscillatorType;
+  padCutoff: number;
+  padGain: number;
+  arpWave: OscillatorType;
+  /** 16 steps indexing into [root, third, fifth, root+octave]. */
+  arpPattern: number[];
+  arpGain: number;
+  bassWave: OscillatorType;
+  bassCutoff: number;
+  kickSteps: number[];
+  snareSteps: number[];
+  /** Hats fire when step % hatEvery === hatEvery - 1; 0 disables. */
+  hatEvery: number;
+  delayTime: number;
+}
+
+/** Four house tracks, all synthesized — no two share a mood. */
+export const TRACKS: TrackDef[] = [
+  {
+    // The classic cruise: Am — F — C — G.
+    name: "NEON HIGHWAY",
+    tempo: 109,
+    progression: [
+      [57, 60, 64],
+      [53, 57, 60],
+      [60, 64, 67],
+      [55, 59, 62],
+    ],
+    padWave: "sawtooth",
+    padCutoff: 850,
+    padGain: 0.028,
+    arpWave: "triangle",
+    arpPattern: [0, 1, 2, 3, 2, 1, 0, 2, 1, 3, 2, 1, 0, 1, 2, 3],
+    arpGain: 0.05,
+    bassWave: "square",
+    bassCutoff: 700,
+    kickSteps: [0, 4, 8, 12],
+    snareSteps: [4, 12],
+    hatEvery: 2,
+    delayTime: 0.29,
+  },
+  {
+    // Slow, dark and wet: Dm — B♭ — C — Am.
+    name: "MIDNIGHT DRIVE",
+    tempo: 92,
+    progression: [
+      [50, 53, 57],
+      [46, 50, 53],
+      [48, 52, 55],
+      [45, 48, 52],
+    ],
+    padWave: "triangle",
+    padCutoff: 600,
+    padGain: 0.05,
+    arpWave: "sine",
+    arpPattern: [0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3],
+    arpGain: 0.06,
+    bassWave: "triangle",
+    bassCutoff: 500,
+    kickSteps: [0, 8],
+    snareSteps: [8],
+    hatEvery: 4,
+    delayTime: 0.42,
+  },
+  {
+    // Fast and mean: Em — C — D — Em with a double-kick.
+    name: "BOSS RUSH",
+    tempo: 132,
+    progression: [
+      [52, 55, 59],
+      [48, 52, 55],
+      [50, 54, 57],
+      [52, 55, 59],
+    ],
+    padWave: "sawtooth",
+    padCutoff: 1400,
+    padGain: 0.022,
+    arpWave: "sawtooth",
+    arpPattern: [0, 3, 1, 3, 2, 3, 1, 3, 0, 3, 1, 3, 2, 3, 1, 3],
+    arpGain: 0.042,
+    bassWave: "square",
+    bassCutoff: 900,
+    kickSteps: [0, 3, 4, 8, 11, 12],
+    snareSteps: [4, 12],
+    hatEvery: 1,
+    delayTime: 0.19,
+  },
+  {
+    // Dreamy lounge: C — G — Am — F, long echoes.
+    name: "STARLIGHT VIP",
+    tempo: 84,
+    progression: [
+      [60, 64, 67],
+      [55, 59, 62],
+      [57, 60, 64],
+      [53, 57, 60],
+    ],
+    padWave: "triangle",
+    padCutoff: 900,
+    padGain: 0.045,
+    arpWave: "triangle",
+    arpPattern: [0, 1, 2, 3, 3, 2, 1, 0, 0, 1, 2, 3, 3, 2, 1, 0],
+    arpGain: 0.045,
+    bassWave: "sine",
+    bassCutoff: 400,
+    kickSteps: [0, 10],
+    snareSteps: [8],
+    hatEvery: 4,
+    delayTime: 0.5,
+  },
 ];
-const ARP_STEPS = [0, 1, 2, 3, 2, 1, 0, 2, 1, 3, 2, 1, 0, 1, 2, 3];
+
+export type MusicMode = "mix" | number;
 
 class ArcadeAudio {
   private ctx: AudioContext | null = null;
@@ -35,11 +150,24 @@ class ArcadeAudio {
   private step = 0;
   private urgent = false;
 
+  private musicMode: MusicMode = "mix";
+  private trackIndex = 0;
+  private trackStartedAt = 0;
+  private fading = false;
+
   muted = false;
 
   constructor() {
     try {
       this.muted = localStorage.getItem(MUTE_KEY) === "1";
+      const storedMode = localStorage.getItem(MUSIC_MODE_KEY);
+      if (storedMode !== null && storedMode !== "mix") {
+        const index = Number.parseInt(storedMode, 10);
+        if (Number.isInteger(index) && index >= 0 && index < TRACKS.length) {
+          this.musicMode = index;
+          this.trackIndex = index;
+        }
+      }
     } catch {
       this.muted = false;
     }
@@ -188,8 +316,13 @@ class ArcadeAudio {
 
   /* ── Music scheduler (Chris Wilson look-ahead pattern) ─────────────── */
 
+  private track(): TrackDef {
+    return TRACKS[this.trackIndex];
+  }
+
   private tempo(): number {
-    return this.urgent ? 149 : 109;
+    const base = this.track().tempo;
+    return this.urgent ? Math.round(base * 1.32) : base;
   }
 
   private startMusic(): void {
@@ -197,6 +330,8 @@ class ArcadeAudio {
     if (!ctx) return;
     this.step = 0;
     this.nextStepTime = ctx.currentTime + 0.08;
+    this.trackStartedAt = ctx.currentTime;
+    if (this.arpDelay) this.arpDelay.delayTime.setValueAtTime(this.track().delayTime, ctx.currentTime);
     this.schedulerId = window.setInterval(() => this.pump(), 28);
   }
 
@@ -205,6 +340,55 @@ class ArcadeAudio {
       clearInterval(this.schedulerId);
       this.schedulerId = null;
     }
+  }
+
+  /** Fade the deck down, swap the record, fade back up. */
+  private transitionTo(index: number): void {
+    const ctx = this.ctx;
+    const bus = this.musicBus;
+    if (!ctx || !bus || this.fading || index === this.trackIndex) return;
+    this.fading = true;
+    const now = ctx.currentTime;
+    bus.gain.cancelScheduledValues(now);
+    bus.gain.setValueAtTime(bus.gain.value, now);
+    bus.gain.linearRampToValueAtTime(0.0001, now + FADE_SECONDS);
+    window.setTimeout(() => {
+      this.fading = false;
+      if (!this.ctx || !this.musicBus) return;
+      this.trackIndex = index;
+      this.step = 0;
+      const t = this.ctx.currentTime;
+      this.nextStepTime = t + 0.06;
+      this.trackStartedAt = t;
+      if (this.arpDelay) this.arpDelay.delayTime.setValueAtTime(this.track().delayTime, t);
+      this.musicBus.gain.cancelScheduledValues(t);
+      this.musicBus.gain.setValueAtTime(0.0001, t);
+      this.musicBus.gain.linearRampToValueAtTime(0.42, t + FADE_SECONDS);
+    }, FADE_SECONDS * 1000 + 60);
+  }
+
+  /** Pick a single track (0–3) or "mix" — 90s each, fading between. */
+  setMusicMode(mode: MusicMode): void {
+    this.musicMode = mode;
+    try {
+      localStorage.setItem(MUSIC_MODE_KEY, mode === "mix" ? "mix" : String(mode));
+    } catch {
+      /* storage blocked */
+    }
+    if (this.ctx) this.trackStartedAt = this.ctx.currentTime;
+    if (mode !== "mix" && mode !== this.trackIndex) {
+      if (this.schedulerId !== null) this.transitionTo(mode);
+      else this.trackIndex = mode;
+    }
+    this.unlock();
+  }
+
+  getMusicState(): { mode: MusicMode; playing: number; tracks: string[] } {
+    return {
+      mode: this.musicMode,
+      playing: this.trackIndex,
+      tracks: TRACKS.map((track) => track.name),
+    };
   }
 
   private pump(): void {
@@ -216,51 +400,59 @@ class ArcadeAudio {
       this.step = (this.step + 1) % 64;
       this.nextStepTime += sixteenth;
     }
+    if (
+      this.musicMode === "mix" &&
+      !this.fading &&
+      ctx.currentTime - this.trackStartedAt >= MIX_TRACK_SECONDS
+    ) {
+      this.transitionTo((this.trackIndex + 1) % TRACKS.length);
+    }
   }
 
   private scheduleStep(globalStep: number, at: number, sixteenth: number): void {
     const music = this.musicBus!;
-    const bar = Math.floor(globalStep / 16) % PROGRESSION.length;
+    const track = this.track();
+    const bar = Math.floor(globalStep / 16) % track.progression.length;
     const beat = globalStep % 16;
-    const chord = PROGRESSION[bar];
+    const chord = track.progression[bar];
 
-    // Kick: four on the floor — a sine drop from 150Hz.
-    if (beat % 4 === 0) {
+    // Kick: a sine drop from 150Hz on the track's own grid.
+    if (track.kickSteps.includes(beat)) {
       this.tone({ type: "sine", freq: 150, slideTo: 40, at, dur: 0.16, gain: 0.5, dest: music });
     }
-    // Snare on 2 and 4.
-    if (beat === 4 || beat === 12) {
+    // Snare.
+    if (track.snareSteps.includes(beat)) {
       this.noise({ at, dur: 0.12, gain: 0.16, filterType: "bandpass", freq: 1900, dest: music });
     }
-    // Hats on the off-16ths.
-    if (beat % 2 === 1) {
+    // Hats.
+    if (track.hatEvery > 0 && beat % track.hatEvery === track.hatEvery - 1) {
       this.noise({ at, dur: 0.03, gain: 0.05, filterType: "highpass", freq: 7000, dest: music });
     }
     // Bass: driving 8ths on the root, octave hop at the phrase turn.
     if (beat % 2 === 0) {
       const octaveHop = beat === 14 ? 12 : 0;
       this.tone({
-        type: "square",
+        type: track.bassWave,
         freq: midiHz(chord[0] - 12 + octaveHop),
         at,
         dur: sixteenth * 1.7,
         gain: 0.11,
         dest: music,
-        lowpass: 700,
+        lowpass: track.bassCutoff,
       });
     }
-    // Pad: two detuned saws sustained for the whole bar.
+    // Pad: two detuned voices sustained for the whole bar.
     if (beat === 0) {
       for (const note of chord) {
         for (const detune of [-7, 7]) {
           this.tone({
-            type: "sawtooth",
+            type: track.padWave,
             freq: midiHz(note),
             at,
             dur: sixteenth * 15.5,
-            gain: 0.028,
+            gain: track.padGain,
             dest: music,
-            lowpass: 850,
+            lowpass: track.padCutoff,
             detune,
           });
         }
@@ -269,11 +461,11 @@ class ArcadeAudio {
     // Arp: 16th-note sparkle an octave up, into the feedback delay.
     const arpNotes = [...chord, chord[0] + 12];
     this.tone({
-      type: "triangle",
-      freq: midiHz(arpNotes[ARP_STEPS[beat]] + 12),
+      type: track.arpWave,
+      freq: midiHz(arpNotes[track.arpPattern[beat]] + 12),
       at,
       dur: sixteenth * 0.9,
-      gain: 0.05,
+      gain: track.arpGain,
       dest: this.arpDelay ?? music,
     });
     // Urgent mode: a pitch-bend siren riding over every half bar.
