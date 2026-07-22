@@ -25,17 +25,27 @@ interface ControllerDeckProps {
 export function ControllerDeck({ room, votes, me, sessionId }: ControllerDeckProps) {
   const toast = useToast();
   const cast = useMutation(api.votes.cast);
+  const toggleBid = useMutation(api.votes.toggleBid);
   const { tilted, registerPress } = useTilt();
 
   const myVote = votes?.votes.find((vote) => vote.playerId === me.playerId);
   const votingOpen = room.status === "voting";
+  const biddingOpen = votingOpen || room.status === "revealed";
   const locked = myVote?.ready ?? false;
+  const myBid = myVote?.bid ?? false;
 
   const press = (axis: Axis, value: PointValue) => {
     if (!votingOpen || tilted) return;
     if (registerPress()) return; // that press tripped the TILT switch
     audio.thunk();
     cast({ roomId: room._id, sessionId, axis, value }).catch((error) => toast.error(error));
+  };
+
+  const pressBid = () => {
+    if (!biddingOpen || tilted) return;
+    if (registerPress()) return;
+    audio.coin();
+    toggleBid({ roomId: room._id, sessionId }).catch((error) => toast.error(error));
   };
 
   return (
@@ -79,6 +89,36 @@ export function ControllerDeck({ room, votes, me, sessionId }: ControllerDeckPro
           disabled={!votingOpen || tilted}
           onPress={(value) => press("uncertainty", value)}
         />
+
+        {/* The gold button: bid to take this work */}
+        <div className="flex flex-col items-center gap-3">
+          <span className="font-arcade text-[10px] tracking-[0.25em] text-glow-yellow">
+            CLAIM IT
+          </span>
+          <button
+            type="button"
+            className={cn("cab-btn h-16 w-28 sm:h-20 sm:w-32", myBid && "cab-selected")}
+            style={{ "--cab-glow": "#ffd700" } as CSSProperties}
+            disabled={!biddingOpen || tilted}
+            onClick={pressBid}
+            aria-label="Bid to take this work"
+            aria-pressed={myBid}
+          >
+            <span className="cab-btn-edge" aria-hidden />
+            <span
+              className="cab-btn-face h-full w-full flex-col gap-1 font-arcade"
+              style={{
+                color: myBid ? "#ffffff" : "#ffd700",
+                textShadow: "0 0 10px #ffd700",
+              }}
+            >
+              <span className="text-base sm:text-lg">💰 BID</span>
+              <span className="text-[7px] tracking-widest">
+                {myBid ? "BID PLACED!" : "TAKE THE QUEST"}
+              </span>
+            </span>
+          </button>
+        </div>
       </div>
     </section>
   );

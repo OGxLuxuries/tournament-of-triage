@@ -14,8 +14,8 @@ import {
   type VotesState,
 } from "../lib/types";
 import { CountdownClock } from "./CountdownClock";
-import { HpBar } from "./HpBar";
 import { PixelAvatar } from "./PixelAvatar";
+import { SliderMeter } from "./SliderMeter";
 import { ArcadeButton, Blink, Panel } from "./ui";
 
 interface VsArenaProps {
@@ -27,14 +27,6 @@ interface VsArenaProps {
   now: number;
   sessionId: string;
 }
-
-const PRIORITY_LABEL: Record<number, string> = {
-  0: "???",
-  1: "URGENT ⚠",
-  2: "HIGH",
-  3: "MEDIUM",
-  4: "LOW",
-};
 
 /** The boss battle: VS marquee, team vs ticket, reveal + victory theatrics. */
 export function VsArena({ room, players, ticket, votes, me, now, sessionId }: VsArenaProps) {
@@ -143,11 +135,27 @@ export function VsArena({ room, players, ticket, votes, me, now, sessionId }: Vs
             <h3 className="font-arcade text-xs leading-relaxed text-neon-magenta">
               {ticket.title.toUpperCase()}
             </h3>
-            <HpBar phase={phase} />
+            {/* Live crowd meters: averages move as votes land, picks stay blind */}
+            <div className="flex flex-col gap-2 border-2 border-abyss-600 bg-abyss-950/60 p-3">
+              <SliderMeter
+                label="COMPLEXITY AVG"
+                value={votes?.averages.complexity ?? null}
+                glow="#ff2ec4"
+                labelClass="text-neon-magenta"
+              />
+              <SliderMeter
+                label="UNCERTAINTY AVG"
+                value={votes?.averages.uncertainty ?? null}
+                glow="#22f7ff"
+                labelClass="text-neon-cyan"
+              />
+            </div>
             <div className="grid grid-cols-3 gap-2 font-arcade text-[8px]">
               <div className="border border-abyss-600 bg-abyss-900/70 p-2">
-                <p className="text-slate-500">THREAT LVL</p>
-                <p className="mt-1 text-neon-red">{PRIORITY_LABEL[ticket.priority ?? 0] ?? "???"}</p>
+                <p className="text-slate-500">CURRENT EST</p>
+                <p className="mt-1 text-neon-red">
+                  {ticket.currentEstimate !== undefined ? `${ticket.currentEstimate} PTS` : "NONE"}
+                </p>
               </div>
               <div className="border border-abyss-600 bg-abyss-900/70 p-2">
                 <p className="text-slate-500">TYPE</p>
@@ -156,10 +164,8 @@ export function VsArena({ room, players, ticket, votes, me, now, sessionId }: Vs
                 </p>
               </div>
               <div className="border border-abyss-600 bg-abyss-900/70 p-2">
-                <p className="text-slate-500">BOUNTY</p>
-                <p className="mt-1 text-neon-yellow">
-                  {phase === "voting" ? "?? PTS" : `${ticket.finalPoints ?? "—"} PTS`}
-                </p>
+                <p className="text-slate-500">BIDS</p>
+                <p className="mt-1 text-neon-yellow">💰 {votes?.bidCount ?? 0}</p>
               </div>
             </div>
             <div>
@@ -296,6 +302,11 @@ function RevealPanel({
                 <PixelAvatar seed={player?.avatarSeed ?? 7} size={26} />
                 <span className="min-w-0 flex-1 truncate text-xs text-slate-200">
                   {player?.name ?? "???"}
+                  {vote.bid && (
+                    <span className="ml-1.5" title="Bid to take this work" aria-label="Bid to take this work">
+                      💰
+                    </span>
+                  )}
                 </span>
                 <span className="border-2 border-neon-magenta px-2.5 py-1 font-arcade text-sm text-neon-magenta shadow-neon-magenta">
                   {vote.complexity}

@@ -2,10 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { MAX_SKILL_ROWS, requireHost } from "./lib/game";
 
-/**
- * Skills matrix rows, with emails masked for the lobby. The Smart Agent
- * matches on the server against the unmasked rows.
- */
+/** Skills data rows for the room — username is the identifier. */
 export const byRoom = query({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, { roomId }) => {
@@ -16,22 +13,25 @@ export const byRoom = query({
     return rows.map((row) => ({
       _id: row._id,
       username: row.username,
-      emailMasked: row.email ? row.email.replace(/@.*$/, "@…") : "",
       skills: row.skills,
       confidence: row.confidence,
     }));
   },
 });
 
-/** Replace the room's skills matrix with freshly parsed CSV rows. */
+/**
+ * Replace the room's skills data with freshly parsed CSV rows. Username is
+ * the identifier; an email column, if a legacy CSV still has one, is kept
+ * only as a fallback match for the Smart Agent.
+ */
 export const upload = mutation({
   args: {
     roomId: v.id("rooms"),
     sessionId: v.string(),
     rows: v.array(
       v.object({
-        email: v.string(),
         username: v.string(),
+        email: v.optional(v.string()),
         skills: v.array(v.string()),
         confidence: v.number(),
       }),
@@ -49,17 +49,16 @@ export const upload = mutation({
     let inserted = 0;
     for (const row of rows.slice(0, MAX_SKILL_ROWS)) {
       const username = row.username.trim().slice(0, 40);
-      const email = row.email.trim().slice(0, 80);
+      if (!username) continue;
       const skills = [
         ...new Set(
           row.skills.map((skill) => skill.trim().toLowerCase()).filter((skill) => skill.length > 0),
         ),
       ].slice(0, 24);
-      if (!username && !email) continue;
       await ctx.db.insert("skillProfiles", {
         roomId,
-        email,
-        username: username || email.split("@")[0],
+        email: (row.email ?? "").trim().slice(0, 80),
+        username,
         skills,
         confidence: Math.min(5, Math.max(1, Math.round(row.confidence) || 1)),
       });

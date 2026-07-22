@@ -63,6 +63,7 @@ export const importMany = internalMutation({
         url: v.optional(v.string()),
         labels: v.array(v.string()),
         priority: v.optional(v.number()),
+        currentEstimate: v.optional(v.number()),
       }),
     ),
   },
@@ -91,6 +92,7 @@ export const importMany = internalMutation({
         url: issue.url,
         labels: issue.labels,
         priority: issue.priority,
+        currentEstimate: issue.currentEstimate,
         order,
         status: "queued",
       });
@@ -128,6 +130,7 @@ export interface DefeatPayload {
   unanimous?: boolean;
   pairingSummary?: string;
   votes: Array<{ name: string; complexity: number; uncertainty: number }>;
+  bidders: string[];
   linear: { accessToken: string; issueId: string } | null;
 }
 
@@ -167,23 +170,24 @@ export const finalizeActive = internalMutation({
       .query("votes")
       .withIndex("by_ticket", (q) => q.eq("ticketId", ticket._id))
       .collect();
-    const currentVotes = allVotes
-      .filter(
-        (vote) =>
-          vote.round === room.roundCount &&
-          vote.complexity !== undefined &&
-          vote.uncertainty !== undefined,
-      )
+    const roundVotes = allVotes.filter((vote) => vote.round === room.roundCount);
+    const fullVotes = roundVotes
+      .filter((vote) => vote.complexity !== undefined && vote.uncertainty !== undefined)
       .sort((a, b) => a.updatedAt - b.updatedAt);
 
     const namedVotes: DefeatPayload["votes"] = [];
-    for (const vote of currentVotes) {
+    for (const vote of fullVotes) {
       const player = await ctx.db.get(vote.playerId);
       namedVotes.push({
         name: player?.name ?? "UNKNOWN PLAYER",
         complexity: vote.complexity!,
         uncertainty: vote.uncertainty!,
       });
+    }
+    const bidders: string[] = [];
+    for (const vote of roundVotes.filter((vote) => vote.bid)) {
+      const player = await ctx.db.get(vote.playerId);
+      if (player) bidders.push(player.name);
     }
 
     const fresh: Doc<"tickets"> = (await ctx.db.get(ticket._id))!;
@@ -198,6 +202,7 @@ export const finalizeActive = internalMutation({
       unanimous: fresh.unanimous,
       pairingSummary: fresh.pairingSummary,
       votes: namedVotes,
+      bidders,
       linear:
         room.linear && fresh.linearIssueId
           ? { accessToken: room.linear.accessToken, issueId: fresh.linearIssueId }

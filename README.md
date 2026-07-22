@@ -18,7 +18,7 @@ for the host, deployable 100% free on **Vercel**.
 | 🎵 Dynamic Synthwave engine | Fully synthesized Web Audio: looping Am–F–C–G synthwave bed (pads/bass/arps/drums), coin-drop on join, mechanical clunks, fast-tempo pitch-bend red-alert under 10s, winner fanfare + digitized **“PERFECT!”** on unanimous votes. Zero audio assets. |
 | 🕹️ 3D Neon Cabinet | CSS-3D vote buttons that hover-glow (magenta/cyan) and physically depress. **Anti-Spam Tilt:** >5 presses in 2s → screen shake + flashing `TILT!` lockout. |
 | 🐲 Mega Boss progression | Active ticket framed in a `TEAM vs BOSS` VS screen with HP bar, threat level, type and abilities parsed from the description. **Sync & Advance** fires a per-player laser volley, drains HP to 0, stamps `DEFEATED!`, and slides in the next level. |
-| 🤖 Skills Matrix + Smart Agent | Host uploads a CSV (`Email/Username, Skills, Confidence`). Any consensus of 3 wakes the agent: it matches skills against the ticket text across **online** players and pairs a **Navigator** (has the skill) with an **Implementor** (doesn't), as a Markdown briefing. |
+| 🤖 Skills Data + Smart Agent | Host uploads a CSV (`Username, Skills, Confidence`) in the DATA tab. Any consensus of 3 wakes the agent: it matches skills against the ticket text across **online** players and pairs a **Navigator** (has the skill) with an **Implementor** (doesn't), as a Markdown briefing. |
 | 🔄 Linear sync | Host links with a personal API key (pasted in-app, validated with Linear, stored server-side only). Imports are scoped to **triage-state issues only** (enforced server-side, so in-progress work is untouchable): filter by one team, several, or all, then hand-pick which issues enter the tournament. On defeat the estimate is written to the ticket and a **👾 Consensus Board** comment (vote table, medals, pairing intel) is posted. |
 | 👻 Presence | Convex heartbeat presence — offline players drop out of the READY count and the agent's pairing pool. |
 
@@ -31,7 +31,7 @@ convex/
   players.ts       # roster + presence heartbeat
   votes.ts         # blind voting (masked until reveal)
   tickets.ts       # demo quest, Linear import, defeat finalizer
-  skills.ts        # skills matrix storage
+  skills.ts        # skills data storage (username-keyed)
   linear.ts        # API-key connect, triage scan/import, estimate+comment sync
   lib/game.ts      # consensus math, Smart Agent pairing, comment builder, demo bosses
 src/
@@ -55,7 +55,7 @@ everything works offline except Linear sync.
 **Play:** POWER ON a cabinet as host → LOAD DEMO QUEST → START GAME. Open a second
 browser/incognito tab, join with the room code and the handle `ada` or `grace`
 (matching [public/sample-skills.csv](public/sample-skills.csv)) — upload that CSV in
-HOST CONSOLE → SKILLS to see the Smart Agent fire on a 3-vote.
+HOST CONSOLE → DATA to see the Smart Agent fire on a 3-vote.
 
 ## Linear setup (host features)
 

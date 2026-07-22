@@ -1,6 +1,6 @@
-Email,Username,Skills,Confidence
-ada@bitpoint.dev,ada,"postgres, sql, migrations, terraform",5
-grace@bitpoint.dev,grace,"react, performance, profiling",4
-alan@bitpoint.dev,alan,"oauth, security, auth",5
-linus@bitpoint.dev,linus,"kubernetes, infra, terraform",3
-margaret@bitpoint.dev,margaret,"react, css, design-systems",2
+Username,Skills,Confidence
+ada,"postgres, sql, migrations, terraform",5
+grace,"react, performance, profiling",4
+alan,"oauth, security, auth",5
+linus,"kubernetes, infra, terraform",3
+margaret,"react, css, design-systems",2

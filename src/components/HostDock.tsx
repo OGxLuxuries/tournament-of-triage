@@ -1,7 +1,7 @@
 import { useAction, useMutation, useQuery } from "convex/react";
 import {
+  Database,
   Download,
-  FileSpreadsheet,
   KeyRound,
   Link2,
   ListOrdered,
@@ -55,7 +55,7 @@ export function HostDock({
   const tabs: Array<{ id: Tab; label: string; icon: typeof Settings2 }> = [
     { id: "missions", label: "MISSIONS", icon: ListOrdered },
     { id: "timer", label: "TIMER", icon: Timer },
-    { id: "skills", label: "SKILLS", icon: FileSpreadsheet },
+    { id: "skills", label: "DATA", icon: Database },
     { id: "linear", label: "LINEAR", icon: Link2 },
   ];
 
@@ -377,9 +377,9 @@ function SkillsTab({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs leading-relaxed text-slate-400">
-        Schema: <span className="text-neon-cyan">Email/Username, Skills, Confidence (1–5)</span>.
-        Export your Google Sheet as CSV. Handles must match player names for the Smart Agent to
-        target them. <a href="/sample-skills.csv" download className="text-neon-magenta underline">
+        Schema: <span className="text-neon-cyan">Username, Skills, Confidence (1–5)</span>.
+        Export your Google Sheet as CSV. Usernames must match player handles for the Smart Agent
+        to target them. <a href="/sample-skills.csv" download className="text-neon-magenta underline">
           <Download size={10} className="inline" aria-hidden /> sample.csv
         </a>
       </p>
@@ -402,7 +402,7 @@ function SkillsTab({
             value={pasteText}
             onChange={(event) => setPasteText(event.target.value)}
             rows={5}
-            placeholder={"Email,Username,Skills,Confidence\nada@team.dev,ada,\"postgres, sql\",5"}
+            placeholder={"Username,Skills,Confidence\nada,\"postgres, sql\",5"}
             className="w-full border-2 border-abyss-500 bg-abyss-950/80 p-2 font-mono text-xs text-slate-200 focus:border-neon-cyan focus:outline-none"
           />
           <ArcadeButton tone="cyan" onClick={() => ingest(pasteText, "PASTE")}>

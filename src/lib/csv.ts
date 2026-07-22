@@ -1,12 +1,14 @@
 /**
- * Skills matrix CSV parsing. Handles quoted fields (Google Sheets exports
- * wrap the comma-separated skills column in quotes), CRLF, and header
- * synonyms like "Email/Username" / "Confidence Level".
+ * Skills data CSV parsing. Username is the identifier — the schema is just
+ * `Username, Skills, Confidence`. Handles quoted fields (Google Sheets wraps
+ * the comma-separated skills column in quotes), CRLF, header synonyms, and
+ * legacy files that still carry an Email column (used only to derive a
+ * username when that cell is blank).
  */
 
 export interface SkillRow {
-  email: string;
   username: string;
+  email?: string;
   skills: string[];
   confidence: number;
 }
@@ -76,36 +78,34 @@ function findColumn(header: string[], needles: string[]): number {
 }
 
 /**
- * Schema: Email/Username, Skills (comma-separated), Confidence Level.
+ * Schema: Username, Skills (comma-separated), Confidence (1–5 or low/high).
  * Header row is detected fuzzily; headerless files fall back to positional
- * columns (0: identity, 1: skills, 2: confidence).
+ * columns (0: username, 1: skills, 2: confidence).
  */
 export function parseSkillsCsv(text: string): SkillRow[] {
   const rows = parseCsv(text);
   if (rows.length === 0) return [];
 
   const header = rows[0];
-  let emailCol = findColumn(header, ["email", "e-mail"]);
   let userCol = findColumn(header, ["user", "name", "handle", "player"]);
   let skillsCol = findColumn(header, ["skill"]);
   let confidenceCol = findColumn(header, ["confidence", "level", "rating"]);
-  const hasHeader = skillsCol !== -1 || emailCol !== -1 || confidenceCol !== -1;
+  const emailCol = findColumn(header, ["email", "e-mail"]);
+  const hasHeader = userCol !== -1 || skillsCol !== -1 || confidenceCol !== -1 || emailCol !== -1;
 
   if (!hasHeader) {
-    emailCol = 0;
     userCol = 0;
     skillsCol = 1;
     confidenceCol = 2;
   }
-  const identityFallback = emailCol !== -1 ? emailCol : userCol;
 
   return rows
     .slice(hasHeader ? 1 : 0)
     .map((cells): SkillRow | null => {
       const email = emailCol !== -1 ? (cells[emailCol] ?? "").trim() : "";
       let username = userCol !== -1 ? (cells[userCol] ?? "").trim() : "";
-      const identity = (cells[identityFallback] ?? "").trim();
-      if (!username) username = identity.includes("@") ? identity.split("@")[0] : identity;
+      if (!username && email) username = email.split("@")[0];
+      if (username.includes("@")) username = username.split("@")[0];
       const skills = (skillsCol !== -1 ? (cells[skillsCol] ?? "") : "")
         .split(/[,;|/]/)
         .map((skill) => skill.trim().toLowerCase())
@@ -113,8 +113,13 @@ export function parseSkillsCsv(text: string): SkillRow[] {
       const confidence = parseConfidence(
         confidenceCol !== -1 ? (cells[confidenceCol] ?? "") : "",
       );
-      if (!email && !username) return null;
-      return { email: email.includes("@") ? email : "", username, skills, confidence };
+      if (!username) return null;
+      return {
+        username,
+        email: email.includes("@") ? email : undefined,
+        skills,
+        confidence,
+      };
     })
     .filter((row): row is SkillRow => row !== null);
 }

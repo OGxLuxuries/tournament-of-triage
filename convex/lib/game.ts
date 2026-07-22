@@ -327,6 +327,7 @@ export function buildConsensusComment(input: {
   finalPoints?: number;
   unanimous?: boolean;
   votes: Array<{ name: string; complexity: number; uncertainty: number }>;
+  bidders?: string[];
   pairingSummary?: string;
   roomName: string;
 }): string {
@@ -353,6 +354,9 @@ export function buildConsensusComment(input: {
     lines.push("");
   } else {
     lines.push("_No votes were cast — the boss surrendered out of boredom._", "");
+  }
+  if (input.bidders && input.bidders.length > 0) {
+    lines.push(`🙋 **Bids to take it:** ${input.bidders.join(", ")}`, "");
   }
   if (input.pairingSummary) {
     lines.push("---", "", input.pairingSummary, "");

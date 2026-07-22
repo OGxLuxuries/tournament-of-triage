@@ -278,6 +278,7 @@ export const importSelected = action({
       url: node.url,
       labels: node.labels.nodes.map((label) => label.name),
       priority: node.priority,
+      currentEstimate: node.estimate ?? undefined,
     }));
 
     const result: { inserted: number; skipped: number } = await ctx.runMutation(
@@ -331,6 +332,7 @@ export const defeatTicket = action({
         finalPoints: payload.finalPoints,
         unanimous: payload.unanimous,
         votes: payload.votes,
+        bidders: payload.bidders,
         pairingSummary: payload.pairingSummary,
         roomName: payload.roomName,
       });

@@ -186,7 +186,7 @@ export function Lobby({ room, players, tickets, me, now, sessionId }: LobbyProps
 
             <p className="text-[11px] leading-relaxed text-slate-400">
               <Rocket size={12} className="mr-1 inline text-neon-magenta" aria-hidden />
-              Backlog import, round timers and the skills matrix live in the{" "}
+              Triage import, round timers and the skills data CSV live in the{" "}
               <span className="text-neon-magenta">HOST CONSOLE</span> (bottom right).
             </p>
           </div>

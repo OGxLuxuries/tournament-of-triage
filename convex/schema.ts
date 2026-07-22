@@ -64,6 +64,8 @@ export default defineSchema({
     url: v.optional(v.string()),
     labels: v.array(v.string()),
     priority: v.optional(v.number()),
+    /** Estimate already on the Linear issue when it was imported. */
+    currentEstimate: v.optional(v.number()),
     order: v.number(),
     status: v.union(v.literal("queued"), v.literal("active"), v.literal("defeated")),
     finalComplexity: v.optional(v.number()),
@@ -90,6 +92,8 @@ export default defineSchema({
     round: v.number(),
     complexity: v.optional(pointValue),
     uncertainty: v.optional(pointValue),
+    /** Player raised their hand to take the work. */
+    bid: v.optional(v.boolean()),
     updatedAt: v.number(),
   })
     .index("by_ticket", ["ticketId"])
