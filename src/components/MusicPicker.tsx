@@ -63,8 +63,10 @@ export function MusicPicker({ compact = false }: { compact?: boolean }) {
           </p>
           <div className="flex flex-col gap-1">
             {rows.map(({ mode, label }) => {
+              // Exactly one row is ever marked: the selected mode. MIX shows
+              // what it's spinning in the footer instead of lighting a second
+              // row, which read as two selections at once.
               const selected = state.mode === mode;
-              const nowPlaying = mode !== "mix" && state.playing === mode;
               return (
                 <button
                   key={String(mode)}
@@ -78,7 +80,7 @@ export function MusicPicker({ compact = false }: { compact?: boolean }) {
                   )}
                 >
                   <span className="w-3 text-neon-green" aria-hidden>
-                    {nowPlaying ? "♪" : selected && mode === "mix" ? "♪" : ""}
+                    {selected ? "♪" : ""}
                   </span>
                   <span className="min-w-0 flex-1 truncate">{label}</span>
                 </button>
@@ -86,7 +88,9 @@ export function MusicPicker({ compact = false }: { compact?: boolean }) {
             })}
           </div>
           <p className="mt-2 px-1 text-[9px] leading-relaxed text-slate-500">
-            MIX rotates all four — 90s each, fading between.
+            {state.mode === "mix"
+              ? `MIX rotates all four — 90s each, fading between. Now spinning: ${state.tracks[state.playing]}.`
+              : "Looping this track. Pick MIX to rotate all four, 90s each."}
           </p>
         </div>
       )}

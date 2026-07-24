@@ -37,6 +37,8 @@ interface TrackDef {
   /** Hats fire when step % hatEvery === hatEvery - 1; 0 disables. */
   hatEvery: number;
   delayTime: number;
+  /** Optional brassy chord stabs on these steps — 80s stadium anthem fuel. */
+  stabSteps?: number[];
 }
 
 /** Four house tracks, all synthesized — no two share a mood. */
@@ -111,27 +113,28 @@ export const TRACKS: TrackDef[] = [
     delayTime: 0.19,
   },
   {
-    // Dreamy lounge: C — G — Am — F, long echoes.
-    name: "STARLIGHT VIP",
-    tempo: 84,
+    // Original 80s stadium-synth anthem — big brassy stabs, Jump-era energy.
+    name: "ARENA ANTHEM",
+    tempo: 128,
     progression: [
       [60, 64, 67],
-      [55, 59, 62],
-      [57, 60, 64],
-      [53, 57, 60],
+      [60, 65, 69],
+      [59, 62, 67],
+      [60, 64, 67],
     ],
-    padWave: "triangle",
-    padCutoff: 900,
-    padGain: 0.045,
+    padWave: "sawtooth",
+    padCutoff: 1100,
+    padGain: 0.016,
     arpWave: "triangle",
-    arpPattern: [0, 1, 2, 3, 3, 2, 1, 0, 0, 1, 2, 3, 3, 2, 1, 0],
-    arpGain: 0.045,
-    bassWave: "sine",
-    bassCutoff: 400,
-    kickSteps: [0, 10],
-    snareSteps: [8],
-    hatEvery: 4,
-    delayTime: 0.5,
+    arpPattern: [0, 2, 3, 2, 0, 2, 3, 2, 0, 2, 3, 2, 0, 2, 3, 2],
+    arpGain: 0.03,
+    bassWave: "square",
+    bassCutoff: 800,
+    kickSteps: [0, 4, 8, 12],
+    snareSteps: [4, 12],
+    hatEvery: 2,
+    delayTime: 0.23,
+    stabSteps: [0, 3, 6, 10, 11],
   },
 ];
 
@@ -453,6 +456,23 @@ class ArcadeAudio {
             gain: track.padGain,
             dest: music,
             lowpass: track.padCutoff,
+            detune,
+          });
+        }
+      }
+    }
+    // Brassy chord stabs — short detuned saw hits, the anthem hook.
+    if (track.stabSteps?.includes(beat)) {
+      for (const note of chord) {
+        for (const detune of [-6, 6]) {
+          this.tone({
+            type: "sawtooth",
+            freq: midiHz(note + 12),
+            at,
+            dur: sixteenth * 2.4,
+            gain: 0.035,
+            dest: music,
+            lowpass: 2600,
             detune,
           });
         }
