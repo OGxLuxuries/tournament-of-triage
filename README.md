@@ -6,8 +6,18 @@ Your backlog becomes a gauntlet of boss battles: the team votes 1–3 on **Compl
 story-point estimate (`max(complexity, uncertainty)`), lasers fly, the boss goes down,
 and the result syncs straight back to Linear as an arcade high-score comment.
 
-Built with **React (Vite) + Tailwind + Lucide**, realtime via **Convex**, Linear OAuth
-for the host, deployable 100% free on **Vercel**.
+Built with **React (Vite) + Tailwind + Lucide**, realtime via **Convex**, Linear linked
+with the host's API key, deployable 100% free on **Vercel**.
+
+---
+
+## 🎬 40-second playthrough
+
+![Playthrough: host creates a cabinet, loads the demo quest, two players blind-vote, a bidding war breaks out, PERFECT! consensus, DEFEATED!](docs/playthrough.gif)
+
+*Host view of a real round: cabinet created → demo quest loaded → grace joins → blind 3/3
+votes move the sliders → sealed bids unseal into a ⚔ bidding war → PERFECT! consensus →
+SYNC & ADVANCE.* Prefer a video file? [docs/playthrough.mp4](docs/playthrough.mp4).
 
 ---
 
